@@ -5,7 +5,6 @@
 // @description  Sauvegarde des avis Amazon
 // @author       MegaMan
 // @match        https://www.amazon.fr/review/create-review*
-// @match        https://www.amazon.fr/vine/vine-reviews?*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=amazon.fr
 // @updateURL    https://raw.githubusercontent.com/teitong/reviewremember/main/ReviewRemember.user.js
 // @downloadURL  https://raw.githubusercontent.com/teitong/reviewremember/main/ReviewRemember.user.js
@@ -72,7 +71,7 @@ window.onload = function() {
             buttonsContainer.style.alignItems = 'center';
             buttonsContainer.className = 'custom-button-container';
 
-            addButton('Enregistrer un modèle', saveTemplate, buttonsContainer, 'template-button');
+            addButton('Sauvegarder un modèle', saveTemplate, buttonsContainer, 'template-button');
 
             // Vérifie si un modèle d'avis générique a été sauvegardé avant d'ajouter le bouton d'utilisation
             if (localStorage.getItem('review_template')) {
@@ -95,7 +94,9 @@ window.onload = function() {
         const button = document.createElement('button');
         button.textContent = text;
         button.className = 'a-button a-button-normal a-button-primary custom-button ' + className;
-        button.addEventListener('click', onClickFunction);
+        button.addEventListener('click', function() {
+            onClickFunction.call(this); // Utilise call pour définir 'this' dans saveReview
+        });
         container.appendChild(button);
     }
 
@@ -105,8 +106,21 @@ window.onload = function() {
         const review = document.querySelector('textarea#scarface-review-text-card-title').value;
         const asin = getASIN();
         localStorage.setItem(`review_${asin}`, JSON.stringify({title, review}));
-        alert('Avis enregistré !');
-        reloadButtons();
+
+        // Récupère le bouton de sauvegarde
+        const saveButton = this; // 'this' fait référence au bouton qui a déclenché l'événement
+        const originalText = saveButton.textContent;
+        saveButton.textContent = 'Enregistré !';
+        //saveButton.disabled = true; // Désactive le bouton pour éviter les doubles clics
+        //saveButton.style.backgroundColor = '#FCD200'; // Gris
+
+        // Réinitialise le bouton après 3 secondes
+        setTimeout(() => {
+            saveButton.textContent = originalText;
+            saveButton.disabled = false; // Réactive le bouton
+            saveButton.style.backgroundColor = ''; // Réinitialise le style (ou mettez ici la couleur d'origine si nécessaire)
+            reloadButtons(); // Optionnel : actualise les boutons si nécessaire
+        }, 2000);
     }
 
     // Fonction pour recharger les boutons
@@ -135,8 +149,21 @@ window.onload = function() {
         const title = document.getElementById('scarface-review-title-label').value;
         const review = document.querySelector('textarea#scarface-review-text-card-title').value;
         localStorage.setItem(`review_template`, JSON.stringify({title, review}));
-        alert('Modèle enregistré !');
-        reloadButtons();
+
+        // Récupère le bouton de sauvegarde
+        const saveButton = this; // 'this' fait référence au bouton qui a déclenché l'événement
+        const originalText = saveButton.textContent;
+        saveButton.textContent = 'Enregistré !';
+        //saveButton.disabled = true; // Désactive le bouton pour éviter les doubles clics
+        //saveButton.style.backgroundColor = '#FCD200'; // Gris
+
+        // Réinitialise le bouton après 3 secondes
+        setTimeout(() => {
+            saveButton.textContent = originalText;
+            saveButton.disabled = false; // Réactive le bouton
+            saveButton.style.backgroundColor = ''; // Réinitialise le style (ou mettez ici la couleur d'origine si nécessaire)
+            reloadButtons(); // Optionnel : actualise les boutons si nécessaire
+        }, 2000);
     }
 
     // Fonction pour utiliser le modèle d'avis générique
