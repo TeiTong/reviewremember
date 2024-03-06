@@ -5,6 +5,7 @@
 // @description  Sauvegarde des avis Amazon
 // @author       MegaMan
 // @match        https://www.amazon.fr/review/create-review*
+// @match        https://www.amazon.fr/vine/vine-reviews?*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=amazon.fr
 // @updateURL    https://raw.githubusercontent.com/teitong/reviewremember/main/ReviewRemember.user.js
 // @downloadURL  https://raw.githubusercontent.com/teitong/reviewremember/main/ReviewRemember.user.js
@@ -14,6 +15,7 @@
 window.onload = function() {
     'use strict';
 
+    //Ajout du menu
     GM_registerMenuCommand("Supprimer le modèle d'avis", function() {
         deleteTemplate();
         reloadButtons();
@@ -23,11 +25,11 @@ window.onload = function() {
      GM_registerMenuCommand("Supprimer tous les avis", function() {
         deleteAllReviews();
          reloadButtons();
-        alert("Tous les avis ont été supprimés");
+        alert("Tous les avis ont été supprimés.");
     }, "a");
 
     const asin = new URLSearchParams(window.location.search).get('asin');
-        // Ajoute des styles supplémentaires pour les boutons
+
     // Définition des styles pour les boutons
     const styles = `
         .custom-button {
@@ -104,6 +106,7 @@ window.onload = function() {
         const asin = getASIN();
         localStorage.setItem(`review_${asin}`, JSON.stringify({title, review}));
         alert('Avis enregistré !');
+        reloadButtons();
     }
 
     // Fonction pour recharger les boutons
@@ -147,10 +150,12 @@ window.onload = function() {
         }
     }
 
-     function deleteTemplate() {
+    //Supprimer le modèle
+    function deleteTemplate() {
         localStorage.removeItem('review_template');
     }
 
+    //Supprimer les avis
     function deleteAllReviews() {
         Object.keys(localStorage).forEach(key => {
             if (key.startsWith('review_')) {
@@ -160,7 +165,8 @@ window.onload = function() {
     }
 
     addButtons();
-        //Suppression footer
+
+    //Suppression footer
     var styleFooter = document.createElement('style');
 
     styleFooter.textContent = `
