@@ -192,21 +192,23 @@ window.onload = function() {
     //Fonctions pour les couleurs des avis
     // Fonction pour changer la couleur de la barre en fonction du pourcentage
     function changeColor() {
-        var progressBar = document.querySelector('#vvp-perc-reviewed-metric-display .animated-progress span');
-        var progressValue = parseFloat(progressBar.getAttribute('data-progress'));
+        if (document.URL === "https://www.amazon.fr/vine/account") {
+            var progressBar = document.querySelector('#vvp-perc-reviewed-metric-display .animated-progress span');
+            var progressValue = parseFloat(progressBar.getAttribute('data-progress'));
 
-        var color = '';
-        var width = progressBar.style.width;
-        if (progressValue < 60) {
-            color = 'red';
-        } else if (progressValue >= 60 && progressValue < 90) {
-            color = 'orange';
-        } else {
-            color = '#32cd32';
+            var color = '';
+            var width = progressBar.style.width;
+            if (progressValue < 60) {
+                color = 'red';
+            } else if (progressValue >= 60 && progressValue < 90) {
+                color = 'orange';
+            } else {
+                color = '#32cd32';
+            }
+
+            progressBar.style.backgroundColor = color;
+            progressBar.style.width = width;
         }
-
-        progressBar.style.backgroundColor = color;
-        progressBar.style.width = width;
     }
 
     // Fonction pour formater une date en format 'DD/MM/YYYY'
