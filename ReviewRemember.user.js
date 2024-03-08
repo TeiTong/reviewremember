@@ -419,7 +419,10 @@ window.onload = function() {
         changeColor();
         GM_registerMenuCommand("Désactiver le changement de couleur de la barre de progression des avis", toggleColorFunction);
     } else {
-        GM_registerMenuCommand("Activer le changement de couleur de la barre de progression des aviss", toggleColorFunction);
+        GM_registerMenuCommand("Activer le changement de couleur de la barre de progression des avis", toggleColorFunction);
+    }
+    if (enableReviewStatusFunction === 'true' || enableDateFunction === 'true') {
+        highlightUnavailableStatus();
     }
     //End
     //Ajout du menu
