@@ -278,7 +278,7 @@ window.onload = function() {
                     //color = '#008000'; // vert
                     nextTd.classList.add('pending-review-green');
                 } else if (daysDifference >= 14 && daysDifference < 30) {
-                   //color = '#FFA500'; // orange
+                    //color = '#FFA500'; // orange
                     nextTd.classList.add('pending-review-orange');
                 } else {
                     //color = '#FF0000'; // rouge
