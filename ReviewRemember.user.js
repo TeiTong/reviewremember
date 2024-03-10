@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ReviewRemember
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.0.1
 // @description  Outils pour les avis Amazon
 // @author       Ashemka et MegaMan
 // @match        https://www.amazon.fr/review/create-review*
@@ -11,9 +11,10 @@
 // @updateURL    https://raw.githubusercontent.com/teitong/reviewremember/main/ReviewRemember.user.js
 // @downloadURL  https://raw.githubusercontent.com/teitong/reviewremember/main/ReviewRemember.user.js
 // @grant        GM_registerMenuCommand
+// @run-at       document-end
 // ==/UserScript==
 
-window.onload = function() {
+(function() {
     'use strict';
 
     const asin = new URLSearchParams(window.location.search).get('asin');
@@ -188,7 +189,7 @@ window.onload = function() {
             }
         });
     }
-    addButtons();
+
     //Fonctions pour les couleurs des avis
     // Fonction pour changer la couleur de la barre en fonction du pourcentage
     function changeColor() {
@@ -438,4 +439,19 @@ window.onload = function() {
         alert("Tous les avis ont été supprimés.");
     }, "a");
 
-};
+    let buttonsAdded = false; // Suivre si les boutons ont été ajoutés
+
+    function tryToAddButtons() {
+        if (buttonsAdded) return; // Arrêtez si les boutons ont déjà été ajoutés
+
+        const submitButtonArea = document.querySelector('.ryp__submit-button-card__card-frame');
+        if (submitButtonArea) {
+            addButtons();
+            buttonsAdded = true; // Marquer que les boutons ont été ajoutés
+        } else {
+            setTimeout(tryToAddButtons, 100); // Réessayer après un demi-seconde
+        }
+    }
+
+    tryToAddButtons();
+})();
