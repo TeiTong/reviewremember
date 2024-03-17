@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         ReviewRemember
 // @namespace    http://tampermonkey.net/
-// @version      1.0.2
+// @version      1.1
 // @description  Outils pour les avis Amazon
 // @author       Ashemka et MegaMan
 // @match        https://www.amazon.fr/review/create-review*
+// @match        https://www.amazon.fr/reviews/edit-review*
 // @match        https://www.amazon.fr/vine/vine-reviews*
 // @match        https://www.amazon.fr/vine/account
 // @match        https://www.amazon.fr/gp/profile/*
@@ -17,18 +18,210 @@
 
 (function() {
     'use strict';
+    //Export des avis
+    function exportReviewsToCSV() {
+        let csvContent = "\uFEFF"; // BOM pour UTF-8
+
+        // Ajouter l'en-tête du CSV
+        csvContent += "ASIN;Titre de l'avis;Contenu de l'avis\n";
+
+        // Itérer sur les éléments de localStorage
+        Object.keys(localStorage).forEach(function(key) {
+            if (key.startsWith('review_')) {
+                const reviewData = JSON.parse(localStorage.getItem(key));
+                const asin = key.replace('review_', ''); // Extraire l'ASIN
+                const title = reviewData.title.replace(/;/g, ','); // Remplacer les ";" par des ","
+                const review = reviewData.review.replace(/\n/g, '\\n');
+
+                // Ajouter la ligne au contenu CSV
+                csvContent += `${asin};${title};${review}\n`;
+            }
+        });
+
+        // Créer un objet Blob avec le contenu CSV en spécifiant le type MIME
+        var blob = new Blob([csvContent], {type: "text/csv;charset=utf-8;"});
+        var url = URL.createObjectURL(blob);
+
+        // Créer un lien pour télécharger le fichier
+        var link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", "RR_backup.csv");
+        document.body.appendChild(link); // Nécessaire pour certains navigateurs
+
+        // Simuler un clic sur le lien pour déclencher le téléchargement
+        link.click();
+
+        // Nettoyer en supprimant le lien et en libérant l'objet URL
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }
+
+    //Import d'un fichier CSV
+    // Fonction pour créer et gérer l'input de fichier
+    function triggerFileInput() {
+        // Créer le bouton qui va réellement ouvrir le dialogue de fichier
+        const fileInputButton = document.createElement('button');
+        fileInputButton.textContent = 'Importer les avis depuis un CSV';
+        fileInputButton.style.position = 'fixed'; // Ou 'absolute' si nécessaire
+        fileInputButton.style.left = '50%';
+        fileInputButton.style.top = '50%';
+        fileInputButton.style.transform = 'translate(-50%, -50%)';
+        fileInputButton.style.zIndex = '1000';
+        fileInputButton.style.backgroundColor = reviewColor;
+
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.csv';
+        fileInput.style.display = 'none';
+        fileInput.onchange = e => {
+            const file = e.target.files[0];
+            if (file) {
+                readAndImportCSV(file);
+                document.body.removeChild(fileInputButton); // Enlever le bouton après sélection
+                document.body.removeChild(fileInput);
+            }
+        };
+
+        document.body.appendChild(fileInputButton);
+        document.body.appendChild(fileInput);
+
+        fileInputButton.onclick = () => fileInput.click(); // Déclencheur de l'input
+        alert("Pour importer, merci de cliquer sur le bouton apparu au milieu de la page");
+    }
+
+
+    function readAndImportCSV(file) {
+        const reader = new FileReader();
+
+        reader.onload = function(event) {
+            const csv = event.target.result;
+            const lines = csv.split('\n');
+
+            for (let i = 1; i < lines.length; i++) {
+                if (lines[i]) {
+                    const columns = lines[i].split(';');
+                    if (columns.length >= 3) {
+                        const asin = columns[0].trim();
+                        const title = columns[1].trim();
+                        const review = columns[2].trim().replace(/\\n/g, '\n'); // Remplacer \\n par de vrais retours à la ligne
+
+                        localStorage.setItem(`review_${asin}`, JSON.stringify({title, review}));
+                    }
+                }
+            }
+
+            alert('Importation terminée.');
+        };
+
+        reader.readAsText(file, 'UTF-8');
+    }
+
+    //Trie des avis sur profil
+    function marquerCarteCommeTraitee(carte) {
+        carte.dataset.traitee = 'true';
+    }
+
+    // Fonction pour classer les cartes traitées par ordre décroissant de leur valeur
+    function classerCartesTraitees() {
+        // Sélectionne uniquement les cartes marquées comme traitées
+        const cartesTraitees = Array.from(document.querySelectorAll('.your-content-card-wrapper.your-content-card-desktop[data-traitee="true"]'));
+
+        // Trie les cartes en fonction de leur valeur numérique de manière croissante
+        cartesTraitees.sort((a, b) => extraireValeur(a) - extraireValeur(b));
+
+        // Réorganise les cartes dans leur conteneur parent selon le nouvel ordre croissant
+        cartesTraitees.forEach(carte => {
+            document.querySelector('.your-content-tab-container').prepend(carte);
+        });
+    }
+
+    // Extrait la valeur numérique d'une carte, retourne 0 si non applicable
+    function extraireValeur(carte) {
+        const valeurElement = carte.querySelector('.a-size-base.a-color-primary.a-text-bold');
+        return valeurElement ? parseInt(valeurElement.innerText.trim(), 10) : 0;
+    }
+
+    // Fonction principale de réorganisation des cartes
+    function reorganiserCartes() {
+        // Sélectionne uniquement les cartes pas encore traitées
+        const cartes = Array.from(document.querySelectorAll('.your-content-card-wrapper.your-content-card-desktop:not([data-traitee="true"])'));
+
+        // Filtre les cartes avec une valeur numérique strictement supérieure à 0
+        const cartesAvecValeur = cartes.filter(carte => extraireValeur(carte) > 0);
+
+        if (cartesAvecValeur.length > 0) {
+            // Trie les cartes en fonction de leur valeur numérique de manière décroissante
+            cartesAvecValeur.sort((a, b) => extraireValeur(b) - extraireValeur(a));
+
+            // Préfixe les cartes triées au début de leur conteneur parent
+            cartesAvecValeur.forEach(carte => {
+                marquerCarteCommeTraitee(carte);
+                carte.style.backgroundColor = reviewColor; // Optionnel: mise en évidence des cartes
+                document.querySelector('.your-content-tab-container').prepend(carte);
+            });
+            classerCartesTraitees();
+        }
+
+    }
+
+    function changeProfil() {
+        // Configuration de l'observer pour réagir aux modifications du DOM
+        const observer = new MutationObserver((mutations) => {
+            let mutationsAvecAjouts = mutations.some(mutation => mutation.addedNodes.length > 0);
+
+            if (mutationsAvecAjouts) {
+                reorganiserCartes();
+            }
+        });
+
+        // Observe le document pour les changements
+        observer.observe(document.body, { childList: true, subtree: true });
+
+        // Exécution initiale au cas où des cartes seraient déjà présentes
+        reorganiserCartes();
+        //Fin tri profil
+    }
+
+    function setHighlightColor() {
+        // Demander à l'utilisateur de choisir une couleur
+        const userInput = prompt("Veuillez saisir la couleur de surbrillance, soit par son nom, soit par sa valeur hexadécimale (exemple : Jaune (#FFFF00), Bleu (#0096FF), Rouge (#FF0000), Vert (#96FF96), etc..)", "").toLowerCase();
+
+        // Correspondance des noms de couleurs à leurs codes hexadécimaux
+        const colorMap = {
+            jaune: "#FFFF00",
+            bleu: "#0096FF",
+            rouge: "#FF0000",
+            vert: "#96FF96",
+            orange: "#FF9600",
+            violet: "#9600FF",
+            rose: "#FF00FF"
+        };
+
+        // Vérifier si l'entrée de l'utilisateur correspond à une couleur prédéfinie
+        const userColor = colorMap[userInput] || userInput;
+
+        // Vérifier si la couleur est une couleur hexadécimale valide (avec ou sans #)
+        const isValidHex = /^#?([a-fA-F0-9]{6}|[a-fA-F0-9]{3})$/.test(userColor);
+
+        if (isValidHex) {
+            // Supprimer le '#' si présent et normaliser la saisie en format 6 caractères
+            let normalizedHex = userColor.replace('#', '');
+            if (normalizedHex.length === 3) {
+                normalizedHex = normalizedHex.split('').map(char => char + char).join('');
+            }
+            // Stocker la couleur convertie
+            localStorage.setItem('reviewColor', userColor);
+            alert("La couleur de surbrillance a été mise à jour à " + userInput);
+        } else {
+            // Utiliser couleur de fallback si saisie invalide
+            localStorage.setItem('reviewColor', '#FFFF00');
+            alert("La saisie n'est pas une couleur valide. La couleur de surbrillance a été réinitialisée à Jaune.");
+        }
+    }
+
 
     const asin = new URLSearchParams(window.location.search).get('asin');
 
-    //Suppression footer
-    var styleFooter = document.createElement('style');
-
-    styleFooter.textContent = `
-#rhf, #rhf-shoveler, .rhf-frame, #navFooter {
-  display: none !important;
-}
-`
-    document.head.appendChild(styleFooter);
     // Définition des styles pour les boutons
     const styles = `
         .custom-button {
@@ -146,24 +339,28 @@
 
     // Fonction pour sauvegarder un modèle d'avis générique
     function saveTemplate() {
-        const title = document.getElementById('scarface-review-title-label').value;
-        const review = document.querySelector('textarea#scarface-review-text-card-title').value;
-        localStorage.setItem(`review_template`, JSON.stringify({title, review}));
+        // Demande confirmation avant de sauvegarder
+        if (confirm("Voulez-vous sauvegarder ce modèle d'avis ?")) {
+            const title = document.getElementById('scarface-review-title-label').value;
+            const review = document.querySelector('textarea#scarface-review-text-card-title').value;
+            localStorage.setItem(`review_template`, JSON.stringify({title, review}));
 
-        // Récupère le bouton de sauvegarde
-        const saveButton = this; // 'this' fait référence au bouton qui a déclenché l'événement
-        const originalText = saveButton.textContent;
-        saveButton.textContent = 'Enregistré !';
-        //saveButton.disabled = true; // Désactive le bouton pour éviter les doubles clics
-        //saveButton.style.backgroundColor = '#FCD200'; // Gris
+            // Récupère le bouton de sauvegarde
+            const saveButton = this; // 'this' fait référence au bouton qui a déclenché l'événement
+            const originalText = saveButton.textContent;
+            saveButton.textContent = 'Enregistré !';
 
-        // Réinitialise le bouton après 3 secondes
-        setTimeout(() => {
-            saveButton.textContent = originalText;
-            saveButton.disabled = false; // Réactive le bouton
-            saveButton.style.backgroundColor = ''; // Réinitialise le style (ou mettez ici la couleur d'origine si nécessaire)
-            reloadButtons(); // Optionnel : actualise les boutons si nécessaire
-        }, 2000);
+            // Réinitialise le bouton après 3 secondes
+            setTimeout(() => {
+                saveButton.textContent = originalText;
+                saveButton.disabled = false; // Réactive le bouton
+                saveButton.style.backgroundColor = ''; // Réinitialise le style (ou mettez ici la couleur d'origine si nécessaire)
+                reloadButtons(); // Optionnel : actualise les boutons si nécessaire
+            }, 2000);
+        } else {
+            // L'utilisateur a choisi de ne pas sauvegarder le modèle
+            console.log('La sauvegarde du modèle a été annulée.');
+        }
     }
 
     // Fonction pour utiliser le modèle d'avis générique
@@ -344,6 +541,26 @@
         });
     }
 
+    // Fonction pour masquer les lignes de tableau contenant le mot-clé "Approuvé" et afficher les autres lignes
+    function masquerLignesApprouve() {
+        var lignes = document.querySelectorAll('.vvp-reviews-table--row');
+        lignes.forEach(function(ligne) {
+            var cellulesStatut = ligne.querySelectorAll('.vvp-reviews-table--text-col');
+            var contientApprouve = false;
+            cellulesStatut.forEach(function(celluleStatut) {
+                var texteStatut = celluleStatut.innerText.trim().toLowerCase();
+                if (texteStatut.includes('approuvé') && texteStatut !== 'non approuvé') {
+                    contientApprouve = true;
+                }
+            });
+            if (contientApprouve) {
+                ligne.style.display = 'none';
+            } else {
+                ligne.style.display = ''; // Afficher la ligne si elle ne contient pas "Approuvé"
+            }
+        });
+    }
+
     // Fonction pour activer ou désactiver la fonction de date
     function toggleDateFunction() {
         var enableDateFunction = localStorage.getItem('enableDateFunction');
@@ -380,12 +597,37 @@
         location.reload();
     }
 
+    // Fonction pour activer ou désactiver le filtrage des avis approuvés
+    function toggleFilter() {
+        var filterEnabled = localStorage.getItem('filterEnabled');
+        if (filterEnabled === 'true') {
+            localStorage.setItem('filterEnabled', 'false');
+        } else {
+            localStorage.setItem('filterEnabled', 'true');
+        }
+        location.reload();
+    }
+
+    //Fonction pour activer ou désactiver la gestion des profils amazon
+    function toggleProfil() {
+        var profilEnabled = localStorage.getItem('profilEnabled');
+        if (profilEnabled === 'true') {
+            localStorage.setItem('profilEnabled', 'false');
+        } else {
+            localStorage.setItem('profilEnabled', 'true');
+        }
+        location.reload();
+    }
+
     //localStorage.removeItem('enableDateFunction');
     //localStorage.removeItem('enableReviewStatusFunction');
     //localStorage.removeItem('enableColorFunction');
     var enableDateFunction = localStorage.getItem('enableDateFunction');
     var enableReviewStatusFunction = localStorage.getItem('enableReviewStatusFunction');
     var enableColorFunction = localStorage.getItem('enableColorFunction');
+    var reviewColor = localStorage.getItem('reviewColor');
+    var filterEnabled = localStorage.getItem('filterEnabled');
+    var profilEnabled = localStorage.getItem('profilEnabled');
 
     // Initialiser à true si la clé n'existe pas dans le stockage local
     if (enableDateFunction === null) {
@@ -401,6 +643,21 @@
     if (enableColorFunction === null) {
         enableColorFunction = 'true';
         localStorage.setItem('enableColorFunction', enableColorFunction);
+    }
+
+    if (reviewColor === null) {
+        reviewColor = '#FFFF00';
+        localStorage.setItem('reviewColor', reviewColor);
+    }
+
+    if (filterEnabled === null) {
+        filterEnabled = 'true';
+        localStorage.setItem('filterEnabled', filterEnabled);
+    }
+
+    if (profilEnabled === null) {
+        profilEnabled = 'true';
+        localStorage.setItem('profilEnabled', profilEnabled);
     }
 
     if (enableDateFunction === 'true') {
@@ -423,11 +680,31 @@
     } else {
         GM_registerMenuCommand("Activer le changement de couleur de la barre de progression des avis", toggleColorFunction);
     }
+
+    if (filterEnabled === 'true') {
+        masquerLignesApprouve();
+        GM_registerMenuCommand("Ne pas cacher les avis approuvés", toggleFilter);
+    } else {
+        GM_registerMenuCommand("Cacher les avis approuvés", toggleFilter);
+    }
     if (enableReviewStatusFunction === 'true' || enableDateFunction === 'true') {
         highlightUnavailableStatus();
     }
     //End
     //Ajout du menu
+    if (profilEnabled === 'true') {
+        changeProfil();
+        GM_registerMenuCommand("Désactiver l'amélioration du profil Amazon (surbrillance, scroll infini, ...)", toggleProfil);
+    } else {
+        GM_registerMenuCommand("Activer l'amélioration du profil Amazon (surbrillance, scroll infini, ...)", toggleProfil);
+    }
+    GM_registerMenuCommand("Définir la couleur de surbrillance des avis sur la page de profil", function() {
+        setHighlightColor();
+    }, "s");
+
+    // Ajout d'une commande pour Tampermonkey
+    GM_registerMenuCommand("Exporter les avis en CSV", exportReviewsToCSV, "e");
+    GM_registerMenuCommand("Importer les avis depuis un CSV", triggerFileInput, "i");
     GM_registerMenuCommand("Supprimer le modèle d'avis", function() {
         deleteTemplate();
         reloadButtons();
@@ -449,10 +726,28 @@
         if (submitButtonArea) {
             addButtons();
             buttonsAdded = true; // Marquer que les boutons ont été ajoutés
+            //Agrandir la zone pour le texte de l'avis
+            const textarea = document.getElementById('scarface-review-text-card-title');
+            if (textarea) {
+                textarea.style.height = '300px'; // Définit la hauteur à 300px
+            }
         } else {
             setTimeout(tryToAddButtons, 100); // Réessayer après un demi-seconde
         }
     }
 
     tryToAddButtons();
+
+    //Suppression footer
+    if (!window.location.href.startsWith("https://www.amazon.fr/gp/profile/") || profilEnabled === 'true') {
+        var styleFooter = document.createElement('style');
+
+        styleFooter.textContent = `
+#rhf, #rhf-shoveler, .rhf-frame, #navFooter {
+  display: none !important;
+}
+`
+        document.head.appendChild(styleFooter);
+    }
+
 })();
