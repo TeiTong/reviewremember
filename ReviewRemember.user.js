@@ -738,8 +738,7 @@
 
     tryToAddButtons();
     // Suppression du footer uniquement sur les PC (1000 étant la valeur pour "Version pour ordinateur" sur Kiwi à priori
-    if (window.innerWidth > 768 && window.innerWidth != 1000 && window.location.href.startsWith("https://www.amazon.fr/gp/profile/") && profilEnabled === 'true') {
-        // Votre code de suppression du footer ici
+    if (window.innerWidth > 768 && window.innerWidth != 1000 && window.innerWidth != 1100 && window.location.href.startsWith("https://www.amazon.fr/gp/profile/") && profilEnabled === 'true') {
         var styleFooter = document.createElement('style');
         styleFooter.textContent = `
         #rhf, #rhf-shoveler, .rhf-frame, #navFooter {
