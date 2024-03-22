@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ReviewRemember
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.1.1
 // @description  Outils pour les avis Amazon
 // @author       Ashemka et MegaMan
 // @match        https://www.amazon.fr/review/create-review*
@@ -737,16 +737,15 @@
     }
 
     tryToAddButtons();
-
-    //Suppression footer
-    if (!window.location.href.startsWith("https://www.amazon.fr/gp/profile/") || profilEnabled === 'true') {
+    // Suppression du footer uniquement sur les PC (1000 étant la valeur pour "Version pour ordinateur" sur Kiwi à priori
+    if (window.innerWidth > 768 && window.innerWidth != 1000 && window.location.href.startsWith("https://www.amazon.fr/gp/profile/") && profilEnabled === 'true') {
+        // Votre code de suppression du footer ici
         var styleFooter = document.createElement('style');
-
         styleFooter.textContent = `
-#rhf, #rhf-shoveler, .rhf-frame, #navFooter {
-  display: none !important;
-}
-`
+        #rhf, #rhf-shoveler, .rhf-frame, #navFooter {
+            display: none !important;
+        }
+    `;
         document.head.appendChild(styleFooter);
     }
 
