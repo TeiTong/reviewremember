@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ReviewRemember
 // @namespace    http://tampermonkey.net/
-// @version      1.1.1
+// @version      1.2
 // @description  Outils pour les avis Amazon
 // @author       Ashemka et MegaMan
 // @match        https://www.amazon.fr/review/create-review*
@@ -9,7 +9,7 @@
 // @match        https://www.amazon.fr/vine/vine-reviews*
 // @match        https://www.amazon.fr/vine/account
 // @match        https://www.amazon.fr/gp/profile/*
-// @icon         https://www.google.com/s2/favicons?sz=64&domain=amazon.fr
+// @icon         https://i.ibb.co/yhNnKdS/RR-ICO-2-1.png
 // @updateURL    https://raw.githubusercontent.com/teitong/reviewremember/main/ReviewRemember.user.js
 // @downloadURL  https://raw.githubusercontent.com/teitong/reviewremember/main/ReviewRemember.user.js
 // @grant        GM_registerMenuCommand
@@ -18,6 +18,32 @@
 
 (function() {
     'use strict';
+
+    var version = GM_info.script.version;
+
+    //On remplace l'image et son lien par notre menu
+    function replaceImageUrl() {
+        // Sélectionner le lien contenant l'image avec l'attribut alt "vine_logo_title"
+        var link = document.querySelector('a > img[alt="vine_logo_title"]') ? document.querySelector('a > img[alt="vine_logo_title"]').parentNode : null;
+
+        // Vérifier si le lien existe
+        if (link) {
+            // Sélectionner directement l'image à l'intérieur du lien
+            var img = link.querySelector('img');
+            // Remplacer l'URL de l'image
+            img.src = 'https://i.ibb.co/Ph6Bw85/RR2.png';
+            // Modifier le comportement du lien pour empêcher le chargement de la page
+            link.onclick = function(event) {
+                // Empêcher l'action par défaut du lien
+                event.preventDefault();
+                // Appeler la fonction createConfigPopup
+                createConfigPopup();
+            };
+        }
+    }
+
+    replaceImageUrl();
+
     //Export des avis
     function exportReviewsToCSV() {
         let csvContent = "\uFEFF"; // BOM pour UTF-8
@@ -57,39 +83,6 @@
     }
 
     //Import d'un fichier CSV
-    // Fonction pour créer et gérer l'input de fichier
-    function triggerFileInput() {
-        // Créer le bouton qui va réellement ouvrir le dialogue de fichier
-        const fileInputButton = document.createElement('button');
-        fileInputButton.textContent = 'Importer les avis depuis un CSV';
-        fileInputButton.style.position = 'fixed'; // Ou 'absolute' si nécessaire
-        fileInputButton.style.left = '50%';
-        fileInputButton.style.top = '50%';
-        fileInputButton.style.transform = 'translate(-50%, -50%)';
-        fileInputButton.style.zIndex = '1000';
-        fileInputButton.style.backgroundColor = reviewColor;
-
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.accept = '.csv';
-        fileInput.style.display = 'none';
-        fileInput.onchange = e => {
-            const file = e.target.files[0];
-            if (file) {
-                readAndImportCSV(file);
-                document.body.removeChild(fileInputButton); // Enlever le bouton après sélection
-                document.body.removeChild(fileInput);
-            }
-        };
-
-        document.body.appendChild(fileInputButton);
-        document.body.appendChild(fileInput);
-
-        fileInputButton.onclick = () => fileInput.click(); // Déclencheur de l'input
-        alert("Pour importer, merci de cliquer sur le bouton apparu au milieu de la page");
-    }
-
-
     function readAndImportCSV(file) {
         const reader = new FileReader();
 
@@ -217,6 +210,71 @@
             localStorage.setItem('reviewColor', '#FFFF00');
             alert("La saisie n'est pas une couleur valide. La couleur de surbrillance a été réinitialisée à Jaune.");
         }
+    }
+
+        function setHighlightColor2() {
+        // Extraire les composantes r, g, b de la couleur actuelle
+        const rgbaMatch = reviewColor.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+),\s*(\d*\.?\d+)\)$/);
+        let hexColor = "#FFFF00"; // Fallback couleur jaune si la conversion échoue
+        if (rgbaMatch) {
+            const r = parseInt(rgbaMatch[1]).toString(16).padStart(2, '0');
+            const g = parseInt(rgbaMatch[2]).toString(16).padStart(2, '0');
+            const b = parseInt(rgbaMatch[3]).toString(16).padStart(2, '0');
+            hexColor = `#${r}${g}${b}`;
+        }
+
+        // Vérifie si une popup existe déjà et la supprime si c'est le cas
+        const existingPopup = document.getElementById('colorPickerPopup');
+        if (existingPopup) {
+            existingPopup.remove();
+        }
+
+        // Crée la fenêtre popup
+        const popup = document.createElement('div');
+        popup.id = "colorPickerPopup";
+        popup.style.cssText = `
+        position: fixed;
+        z-index: 10001;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        padding: 20px;
+        background-color: white;
+        border: 1px solid #ccc;
+        box-shadow: 0px 0px 10px #ccc;
+    `;
+        popup.innerHTML = `
+          <h2 id="configPopupHeader">Couleur de surbrillance des nouveaux produits<span id="closeColorPicker" style="float: right; cursor: pointer;">&times;</span></h2>
+        <input type="color" id="colorPicker" value="${hexColor}" style="width: 100%;">
+        <div class="button-container final-buttons">
+            <button class="full-width" id="saveColor">Enregistrer</button>
+            <button class="full-width" id="closeColor">Fermer</button>
+        </div>
+    `;
+
+        document.body.appendChild(popup);
+
+        // Ajoute des écouteurs d'événement pour les boutons
+        document.getElementById('saveColor').addEventListener('click', function() {
+            const selectedColor = document.getElementById('colorPicker').value;
+            // Convertir la couleur hexadécimale en RGBA pour la transparence
+            const r = parseInt(selectedColor.substr(1, 2), 16);
+            const g = parseInt(selectedColor.substr(3, 2), 16);
+            const b = parseInt(selectedColor.substr(5, 2), 16);
+            const rgbaColor = `rgba(${r}, ${g}, ${b}, 0.5)`;
+
+            // Stocker la couleur sélectionnée
+            localStorage.setItem('reviewColor', rgbaColor);
+            reviewColor = rgbaColor;
+            popup.remove();
+        });
+
+        document.getElementById('closeColor').addEventListener('click', function() {
+            popup.remove();
+        });
+        document.getElementById('closeColorPicker').addEventListener('click', function() {
+            popup.remove();
+        });
     }
 
 
@@ -561,64 +619,6 @@
         });
     }
 
-    // Fonction pour activer ou désactiver la fonction de date
-    function toggleDateFunction() {
-        var enableDateFunction = localStorage.getItem('enableDateFunction');
-
-        if (enableDateFunction === 'true') {
-            localStorage.setItem('enableDateFunction', 'false');
-        } else {
-            localStorage.setItem('enableDateFunction', 'true');
-        }
-        location.reload();
-    }
-
-    // Fonction pour activer ou désactiver la fonction de statuts des commentaires
-    function toggleReviewStatusFunction() {
-        var enableReviewStatusFunction = localStorage.getItem('enableReviewStatusFunction');
-
-        if (enableReviewStatusFunction === 'true') {
-            localStorage.setItem('enableReviewStatusFunction', 'false');
-        } else {
-            localStorage.setItem('enableReviewStatusFunction', 'true');
-        }
-        location.reload();
-    }
-
-    // Fonction pour activer ou désactiver la coloration de la barre de progression
-    function toggleColorFunction() {
-        var enableColorFunction = localStorage.getItem('enableColorFunction');
-
-        if (enableColorFunction === 'true') {
-            localStorage.setItem('enableColorFunction', 'false');
-        } else {
-            localStorage.setItem('enableColorFunction', 'true');
-        }
-        location.reload();
-    }
-
-    // Fonction pour activer ou désactiver le filtrage des avis approuvés
-    function toggleFilter() {
-        var filterEnabled = localStorage.getItem('filterEnabled');
-        if (filterEnabled === 'true') {
-            localStorage.setItem('filterEnabled', 'false');
-        } else {
-            localStorage.setItem('filterEnabled', 'true');
-        }
-        location.reload();
-    }
-
-    //Fonction pour activer ou désactiver la gestion des profils amazon
-    function toggleProfil() {
-        var profilEnabled = localStorage.getItem('profilEnabled');
-        if (profilEnabled === 'true') {
-            localStorage.setItem('profilEnabled', 'false');
-        } else {
-            localStorage.setItem('profilEnabled', 'true');
-        }
-        location.reload();
-    }
-
     //localStorage.removeItem('enableDateFunction');
     //localStorage.removeItem('enableReviewStatusFunction');
     //localStorage.removeItem('enableColorFunction');
@@ -628,6 +628,7 @@
     var reviewColor = localStorage.getItem('reviewColor');
     var filterEnabled = localStorage.getItem('filterEnabled');
     var profilEnabled = localStorage.getItem('profilEnabled');
+    var footerEnabled = localStorage.getItem('footerEnabled');
 
     // Initialiser à true si la clé n'existe pas dans le stockage local
     if (enableDateFunction === null) {
@@ -660,62 +661,310 @@
         localStorage.setItem('profilEnabled', profilEnabled);
     }
 
+    if (footerEnabled === null) {
+        footerEnabled = 'false';
+        localStorage.setItem('footerEnabled', footerEnabled);
+    }
+
     if (enableDateFunction === 'true') {
         highlightDates();
-        GM_registerMenuCommand("Désactiver le surlignage du statut des avis", toggleDateFunction);
-    } else {
-        GM_registerMenuCommand("Activer le surlignage du statut des avis", toggleDateFunction);
     }
 
     if (enableReviewStatusFunction === 'true') {
         highlightReviewStatus();
-        GM_registerMenuCommand("Désactiver le surlignage des avis vérifiés", toggleReviewStatusFunction);
-    } else {
-        GM_registerMenuCommand("Activer le surlignage des avis vérifiés", toggleReviewStatusFunction);
     }
 
     if (enableColorFunction === 'true') {
         changeColor();
-        GM_registerMenuCommand("Désactiver le changement de couleur de la barre de progression des avis", toggleColorFunction);
-    } else {
-        GM_registerMenuCommand("Activer le changement de couleur de la barre de progression des avis", toggleColorFunction);
     }
 
     if (filterEnabled === 'true') {
         masquerLignesApprouve();
-        GM_registerMenuCommand("Ne pas cacher les avis approuvés", toggleFilter);
-    } else {
-        GM_registerMenuCommand("Cacher les avis approuvés", toggleFilter);
     }
+
     if (enableReviewStatusFunction === 'true' || enableDateFunction === 'true') {
         highlightUnavailableStatus();
     }
-    //End
-    //Ajout du menu
+
     if (profilEnabled === 'true') {
         changeProfil();
-        GM_registerMenuCommand("Désactiver l'amélioration du profil Amazon (surbrillance, scroll infini, ...)", toggleProfil);
-    } else {
-        GM_registerMenuCommand("Activer l'amélioration du profil Amazon (surbrillance, scroll infini, ...)", toggleProfil);
     }
-    GM_registerMenuCommand("Définir la couleur de surbrillance des avis sur la page de profil", function() {
-        setHighlightColor();
-    }, "s");
+    //End
+    //Ajout du menu
+    const styleMenu = document.createElement('style');
+    styleMenu.type = 'text/css';
+    styleMenu.innerHTML = `
+#configPopup, #colorPickerPopup {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10000;
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  width: 500px; /* Ajusté pour mieux s'adapter aux deux colonnes de checkbox */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  cursor: auto;
+  border: 2px solid #ccc; /* Ajout d'un contour */
+}
 
-    // Ajout d'une commande pour Tampermonkey
-    GM_registerMenuCommand("Exporter les avis en CSV", exportReviewsToCSV, "e");
-    GM_registerMenuCommand("Importer les avis depuis un CSV", triggerFileInput, "i");
-    GM_registerMenuCommand("Supprimer le modèle d'avis", function() {
-        deleteTemplate();
-        reloadButtons();
-        alert("Modèle d'avis supprimé.");
-    }, "m");
+#configPopup h2, #configPopup label {
+  color: #333;
+  margin-bottom: 20px;
+}
 
-    GM_registerMenuCommand("Supprimer tous les avis", function() {
-        deleteAllReviews();
-        reloadButtons();
-        alert("Tous les avis ont été supprimés.");
-    }, "a");
+#configPopup h2, #colorPickerPopup h2 {
+  cursor: grab;
+  font-size: 1.5em;
+  text-align: center;
+}
+
+#configPopup label {
+  display: flex;
+  align-items: center;
+}
+
+#configPopup label input[type="checkbox"] {
+  margin-right: 10px;
+}
+
+#configPopup .button-container,
+#configPopup .checkbox-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+#configPopup .button-container button,
+#configPopup .checkbox-container label {
+  margin-bottom: 10px;
+  flex-basis: 48%; /* Ajusté pour uniformiser l'apparence des boutons et des labels */
+}
+
+#configPopup button {
+  padding: 5px 10px;
+  background-color: #f3f3f3;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: center;
+}
+
+#configPopup button:not(.full-width), #colorPickerPopup button:not(.full-width) {
+  margin-right: 1%;
+  margin-left: 1%;
+}
+
+#configPopup button.full-width, #colorPickerPopup button.full-width {
+  flex-basis: 48%;
+  margin-right: 1%;
+  margin-left: 1%;
+}
+
+#configPopup button:hover {
+  background-color: #e8e8e8;
+}
+
+#configPopup button:active {
+  background-color: #ddd;
+}
+#configPopup label.disabled {
+  color: #ccc;
+}
+
+#configPopup label.disabled input[type="checkbox"] {
+  cursor: not-allowed;
+}
+#saveConfig, #closeConfig, #saveColor, #closeColor {
+  padding: 8px 15px !important; /* Plus de padding pour un meilleur visuel */
+  margin-top !important: 5px;
+  border-radius: 5px !important; /* Bordures légèrement arrondies */
+  font-weight: bold !important; /* Texte en gras */
+  border: none !important; /* Supprime la bordure par défaut */
+  color: white !important; /* Texte en blanc */
+  cursor: pointer !important;
+  transition: background-color 0.3s ease !important; /* Transition pour l'effet au survol */
+}
+
+#saveConfig, #saveColor {
+  background-color: #4CAF50 !important; /* Vert pour le bouton "Enregistrer" */
+}
+
+#closeConfig, #closeColor {
+  background-color: #f44336 !important; /* Rouge pour le bouton "Fermer" */
+}
+
+#saveConfig:hover, #saveColor:hover {
+  background-color: #45a049 !important; /* Assombrit le vert au survol */
+}
+
+#closeConfig:hover, #closeColor:hover {
+  background-color: #e53935 !important; /* Assombrit le rouge au survol */
+}
+#saveColor, #closeColor {
+  margin-top: 10px; /* Ajoute un espace de 10px au-dessus du second bouton */
+  width: 100%; /* Utilise width: 100% pour assurer que le bouton prend toute la largeur */
+}
+#reviewColor {
+  flex-basis: 100% !important; /* Prend la pleine largeur pour forcer à aller sur une nouvelle ligne */
+  margin-right: 1% !important; /* Annuler la marge droite si elle est définie ailleurs */
+  margin-left: 1% !important; /* Annuler la marge droite si elle est définie ailleurs */
+}
+`;
+    document.head.appendChild(styleMenu);
+
+    // Fonction pour rendre la fenêtre déplaçable
+    function dragElement(elmnt) {
+        var pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+        if (document.getElementById(elmnt.id + "Header")) {
+            // si présent, le header est l'endroit où vous pouvez déplacer la DIV:
+            document.getElementById(elmnt.id + "Header").onmousedown = dragMouseDown;
+        } else {
+            // sinon, déplace la DIV de n'importe quel endroit à l'intérieur de la DIV:
+            elmnt.onmousedown = dragMouseDown;
+        }
+
+        function dragMouseDown(e) {
+            e = e || window.event;
+            e.preventDefault();
+            // position de la souris au démarrage:
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+            document.onmouseup = closeDragElement;
+            // appelle la fonction chaque fois que le curseur bouge:
+            document.onmousemove = elementDrag;
+        }
+
+        function elementDrag(e) {
+            e = e || window.event;
+            e.preventDefault();
+            // calcule la nouvelle position de la souris:
+            pos1 = pos3 - e.clientX;
+            pos2 = pos4 - e.clientY;
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+            // définit la nouvelle position de l'élément:
+            elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
+            elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
+        }
+
+        function closeDragElement() {
+            // arrête le mouvement quand le bouton de la souris est relâché:
+            document.onmouseup = null;
+            document.onmousemove = null;
+        }
+    }
+
+    // Crée la fenêtre popup de configuration avec la fonction de déplacement
+    async function createConfigPopup() {
+        const popup = document.createElement('div');
+        popup.id = "configPopup";
+        popup.innerHTML = `
+    <h2 id="configPopupHeader">Paramètres ReviewRemember v${version}<span id="closePopup" style="float: right; cursor: pointer;">&times;</span></h2>
+    <div class="checkbox-container">
+      ${createCheckbox('enableDateFunction', 'Surlignage du statut des avis')}
+      ${createCheckbox('enableReviewStatusFunction', 'Surlignage des avis vérifiés')}
+      ${createCheckbox('enableColorFunction', 'Changer la couleur de la barre de progression des avis')}
+      ${createCheckbox('filterEnabled', 'Cacher les avis approuvés')}
+      ${createCheckbox('profilEnabled', 'Mise en avant des avis avec des votes utiles sur les profils Amazon')}
+      ${createCheckbox('footerEnabled', 'Supprimer le footer sur les profils Amazon (à décocher si les avis ne se chargent pas)')}
+       </div>
+    ${addActionButtons()}
+  `;
+        document.body.appendChild(popup);
+
+        document.getElementById('closePopup').addEventListener('click', () => {
+            document.getElementById('configPopup').remove();
+        });
+
+        // Ajoute des écouteurs pour les nouveaux boutons
+        document.getElementById('reviewColor').addEventListener('click', setHighlightColor2);
+        document.getElementById('exportCSV').addEventListener('click', exportReviewsToCSV);
+
+        document.getElementById('purgeTemplate').addEventListener('click', () => {
+            if (confirm("Es-tu sûr de vouloir supprimer le modèle d'avis ?")) {
+                deleteTemplate();
+                reloadButtons();
+            }
+        });
+
+        document.getElementById('purgeReview').addEventListener('click', () => {
+            if (confirm("Es-tu sûr de vouloir supprimer tous les avis ?")) {
+                deleteAllReviews();
+                reloadButtons();
+            }
+        });
+        //Import
+        document.getElementById('importCSV').addEventListener('click', function() {
+            document.getElementById('fileInput').click();
+        });
+
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.id = 'fileInput';
+        fileInput.style.display = 'none'; // Le rend invisible
+        fileInput.accept = '.csv'; // Accepte uniquement les fichiers .csv
+
+        // Ajoute l'élément input au body du document
+        document.body.appendChild(fileInput);
+        document.getElementById('fileInput').addEventListener('change', function(event) {
+            const file = event.target.files[0]; // Obtient le fichier sélectionné
+            if (file) {
+                readAndImportCSV(file); // Envoie le fichier à la fonction
+            }
+        });
+
+        dragElement(popup);
+
+        document.getElementById('saveConfig').addEventListener('click', saveConfig);
+        document.getElementById('closeConfig').addEventListener('click', () => popup.remove());
+    }
+
+    function createCheckbox(name, label, disabled = false) {
+        // Récupère la valeur depuis localStorage; 'false' est utilisé comme valeur par défaut
+        const isChecked = localStorage.getItem(name) === 'true' ? 'checked' : '';
+        const isDisabled = disabled ? 'disabled' : '';
+
+        // Construit et retourne le HTML de la checkbox avec les attributs ajustés
+        // Note: assure-toi que la valeur 'true' ou 'false' est bien stockée comme chaîne dans localStorage
+        return `<label class="${isDisabled ? 'disabled' : ''}"><input type="checkbox" id="${name}" name="${name}" ${isChecked} ${isDisabled}> ${label}</label>`;
+    }
+
+    // Sauvegarde la configuration
+    async function saveConfig() {
+        document.querySelectorAll('#configPopup input[type="checkbox"]').forEach(input => {
+            // Stocke la valeur (true ou false) dans localStorage en tant que chaîne de caractères
+            localStorage.setItem(input.name, input.checked.toString());
+        });
+        //alert('Configuration sauvegardée.');
+        window.location.reload();
+        document.getElementById('configPopup').remove();
+    }
+
+    // Ajoute les boutons pour les actions spécifiques qui ne sont pas juste des toggles on/off
+    function addActionButtons() {
+        return `
+<div class="button-container action-buttons">
+  <button id="reviewColor">Définir la couleur de surbrillance des avis sur les profils Amazon</button><br>
+  <button id="exportCSV">Exporter les avis en CSV</button>
+  <button id="importCSV">Importer les avis en CSV</button>
+  <button id="purgeTemplate">Supprimer le modèle d'avis</button>
+  <button id="purgeReview">Supprimer tous les avis</button>
+</div>
+<div class="button-container final-buttons">
+  <button class="full-width" id="saveConfig">Enregistrer</button>
+  <button class="full-width" id="closeConfig">Fermer</button>
+</div>
+    `;
+    }
+
+    // Ajouter la commande de menu "Paramètres"
+    GM_registerMenuCommand("Paramètres", createConfigPopup, "p");
+    //End
 
     let buttonsAdded = false; // Suivre si les boutons ont été ajoutés
 
@@ -738,7 +987,8 @@
 
     tryToAddButtons();
     // Suppression du footer uniquement sur les PC (1000 étant la valeur pour "Version pour ordinateur" sur Kiwi à priori
-    if (window.innerWidth > 768 && window.innerWidth != 1000 && window.innerWidth != 1100 && window.location.href.startsWith("https://www.amazon.fr/gp/profile/") && profilEnabled === 'true') {
+    if (window.innerWidth > 768 && window.innerWidth != 1000 && window.innerWidth != 1100 && window.location.href.startsWith("https://www.amazon.fr/gp/profile/") && footerEnabled === 'true') {
+        // Votre code de suppression du footer ici
         var styleFooter = document.createElement('style');
         styleFooter.textContent = `
         #rhf, #rhf-shoveler, .rhf-frame, #navFooter {
@@ -748,4 +998,33 @@
         document.head.appendChild(styleFooter);
     }
 
+    window.addEventListener('load', function () {
+        //Active le bouton de téléchargement du rapport
+        var element = document.querySelector('.vvp-tax-report-file-type-select-container.download-disabled');
+        if (element) {
+            element.classList.remove('download-disabled');
+        }
+
+        //Ajoute l'heure de l'évaluation
+        const timeStampElement = document.getElementById('vvp-eval-end-stamp');
+        const timeStamp = timeStampElement ? timeStampElement.textContent : null;
+
+        if (timeStamp) {
+            const date = new Date(parseInt(timeStamp));
+            const optionsDate = { day: '2-digit', month: '2-digit', year: 'numeric' };
+            const optionsTime = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
+            const formattedDate = date.toLocaleDateString('fr-FR', optionsDate) + ' à ' + date.toLocaleTimeString('fr-FR', optionsTime);
+
+            const dateStringElement = document.getElementById('vvp-evaluation-date-string');
+            if (dateStringElement) {
+                dateStringElement.innerHTML = `Réévaluation&nbsp;: <strong>${formattedDate}</strong>`;
+            }
+        }
+
+        //Suppression du bouton pour se désincrire
+        var elem = document.getElementById('vvp-opt-out-of-vine-button');
+        if (elem) {
+            elem.style.display = 'none';
+        }
+    });
 })();
