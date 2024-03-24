@@ -21,6 +21,9 @@
 
     var version = GM_info.script.version;
 
+    //Correction du mot sur la page
+    document.body.innerHTML = document.body.innerHTML.replace(/Vérifiées/g, 'Vérifiés');
+
     //On remplace l'image et son lien par notre menu
     function replaceImageUrl() {
         // Sélectionner le lien contenant l'image avec l'attribut alt "vine_logo_title"
@@ -174,45 +177,7 @@
         reorganiserCartes();
         //Fin tri profil
     }
-
     function setHighlightColor() {
-        // Demander à l'utilisateur de choisir une couleur
-        const userInput = prompt("Veuillez saisir la couleur de surbrillance, soit par son nom, soit par sa valeur hexadécimale (exemple : Jaune (#FFFF00), Bleu (#0096FF), Rouge (#FF0000), Vert (#96FF96), etc..)", "").toLowerCase();
-
-        // Correspondance des noms de couleurs à leurs codes hexadécimaux
-        const colorMap = {
-            jaune: "#FFFF00",
-            bleu: "#0096FF",
-            rouge: "#FF0000",
-            vert: "#96FF96",
-            orange: "#FF9600",
-            violet: "#9600FF",
-            rose: "#FF00FF"
-        };
-
-        // Vérifier si l'entrée de l'utilisateur correspond à une couleur prédéfinie
-        const userColor = colorMap[userInput] || userInput;
-
-        // Vérifier si la couleur est une couleur hexadécimale valide (avec ou sans #)
-        const isValidHex = /^#?([a-fA-F0-9]{6}|[a-fA-F0-9]{3})$/.test(userColor);
-
-        if (isValidHex) {
-            // Supprimer le '#' si présent et normaliser la saisie en format 6 caractères
-            let normalizedHex = userColor.replace('#', '');
-            if (normalizedHex.length === 3) {
-                normalizedHex = normalizedHex.split('').map(char => char + char).join('');
-            }
-            // Stocker la couleur convertie
-            localStorage.setItem('reviewColor', userColor);
-            alert("La couleur de surbrillance a été mise à jour à " + userInput);
-        } else {
-            // Utiliser couleur de fallback si saisie invalide
-            localStorage.setItem('reviewColor', '#FFFF00');
-            alert("La saisie n'est pas une couleur valide. La couleur de surbrillance a été réinitialisée à Jaune.");
-        }
-    }
-
-        function setHighlightColor2() {
         // Extraire les composantes r, g, b de la couleur actuelle
         const rgbaMatch = reviewColor.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+),\s*(\d*\.?\d+)\)$/);
         let hexColor = "#FFFF00"; // Fallback couleur jaune si la conversion échoue
@@ -882,7 +847,7 @@
         });
 
         // Ajoute des écouteurs pour les nouveaux boutons
-        document.getElementById('reviewColor').addEventListener('click', setHighlightColor2);
+        document.getElementById('reviewColor').addEventListener('click', setHighlightColor);
         document.getElementById('exportCSV').addEventListener('click', exportReviewsToCSV);
 
         document.getElementById('purgeTemplate').addEventListener('click', () => {
