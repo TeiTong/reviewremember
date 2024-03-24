@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ReviewRemember
 // @namespace    http://tampermonkey.net/
-// @version      1.2
+// @version      1.2.1
 // @description  Outils pour les avis Amazon
 // @author       Ashemka et MegaMan
 // @match        https://www.amazon.fr/review/create-review*
@@ -866,12 +866,12 @@
         popup.innerHTML = `
     <h2 id="configPopupHeader">Paramètres ReviewRemember v${version}<span id="closePopup" style="float: right; cursor: pointer;">&times;</span></h2>
     <div class="checkbox-container">
-      ${createCheckbox('enableDateFunction', 'Surlignage du statut des avis')}
-      ${createCheckbox('enableReviewStatusFunction', 'Surlignage des avis vérifiés')}
-      ${createCheckbox('enableColorFunction', 'Changer la couleur de la barre de progression des avis')}
-      ${createCheckbox('filterEnabled', 'Cacher les avis approuvés')}
-      ${createCheckbox('profilEnabled', 'Mise en avant des avis avec des votes utiles sur les profils Amazon')}
-      ${createCheckbox('footerEnabled', 'Supprimer le footer sur les profils Amazon (à décocher si les avis ne se chargent pas)')}
+      ${createCheckbox('enableDateFunction', 'Surlignage du statut des avis', 'Change la couleur du "Statut du commentaire" dans vos avis "En attente de vérification" en fonction de leur date d\'ancienneté. Entre 0 et 6 jours -> Bleu, 7 à 13 jours -> Vert, 14 à 29 jours -> Orange, plus de 30 jours -> Rouge')}
+      ${createCheckbox('enableReviewStatusFunction', 'Surlignage des avis vérifiés', 'Change la couleur du "Statut du commentaire" dans vos avis "Vérifiées" en fonction de leur statut actuel (Approuvé, Non approuvé, etc...)')}
+      ${createCheckbox('enableColorFunction', 'Changer la couleur de la barre de progression des avis', 'Change la couleur de la barre de progression des avis sur la page "Compte". Entre 0 et 59% -> Rouge, 60 à 89% -> Orange et supérieur à 90% -> Vert')}
+      ${createCheckbox('filterEnabled', 'Cacher les avis approuvés', 'Dans l\'onglet "Vérifiées" de vos avis, si l\'avis  est Approuvé, alors il est caché')}
+      ${createCheckbox('profilEnabled', 'Mise en avant des avis avec des votes utiles sur les profils Amazon','Surligne de la couleur définie les avis ayant un vote utile ou plus. Il est également mis en début de page. Le surlignage ne fonctionne pas si l\'avis possède des photos')}
+      ${createCheckbox('footerEnabled', 'Supprimer le footer sur les profils Amazon (à décocher si les avis ne se chargent pas)', 'Supprime le bas de page sur les pages de profil Amazon, cela permet de charger plus facilement les avis sans descendre tout en bas de la page. Cela ne fonctionne que sur PC, donc à désactiver si vous avez le moindre problème sur cette page')}
        </div>
     ${addActionButtons()}
   `;
@@ -924,7 +924,7 @@
         document.getElementById('closeConfig').addEventListener('click', () => popup.remove());
     }
 
-    function createCheckbox(name, label, disabled = false) {
+    /* function createCheckbox(name, label, disabled = false) {
         // Récupère la valeur depuis localStorage; 'false' est utilisé comme valeur par défaut
         const isChecked = localStorage.getItem(name) === 'true' ? 'checked' : '';
         const isDisabled = disabled ? 'disabled' : '';
@@ -932,6 +932,37 @@
         // Construit et retourne le HTML de la checkbox avec les attributs ajustés
         // Note: assure-toi que la valeur 'true' ou 'false' est bien stockée comme chaîne dans localStorage
         return `<label class="${isDisabled ? 'disabled' : ''}"><input type="checkbox" id="${name}" name="${name}" ${isChecked} ${isDisabled}> ${label}</label>`;
+    }*/
+
+    function createCheckbox(name, label, explanation = null, disabled = false) {
+        const isChecked = localStorage.getItem(name) === 'true' ? 'checked' : '';
+        const isDisabled = disabled ? 'disabled' : '';
+        // Choisis la couleur ici. Options: 'black', 'white', 'gray'
+        const color = 'gray'; // Exemple: change cette valeur pour 'black', 'white', ou une autre couleur CSS valide
+
+        // Génération de l'ID unique pour le span d'aide
+        const helpSpanId = `help-span-${name}`;
+
+        // Icône d'aide avec gestionnaire d'événements attaché via addEventListener
+        const helpIcon = explanation ? `<span id="${helpSpanId}" style="text-decoration: none; cursor: help; margin-left: 4px; color: ${color}; font-size: 16px;">?</span>` : '';
+        const checkboxHtml = `<label class="${isDisabled ? 'disabled' : ''}">
+              <input type="checkbox" id="${name}" name="${name}" ${isChecked} ${isDisabled}>
+              ${label} ${helpIcon}
+          </label>`;
+
+        // Attacher le gestionnaire d'événements après le rendu de l'HTML
+        setTimeout(() => {
+            const helpSpan = document.getElementById(helpSpanId);
+            if (helpSpan) {
+                helpSpan.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    alert(explanation); // Ou toute autre logique d'affichage d'explication
+                });
+            }
+        }, 0);
+
+        return checkboxHtml;
     }
 
     // Sauvegarde la configuration
