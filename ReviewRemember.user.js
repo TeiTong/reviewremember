@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ReviewRemember
 // @namespace    http://tampermonkey.net/
-// @version      1.2.1
+// @version      1.2.2
 // @description  Outils pour les avis Amazon
 // @author       Ashemka et MegaMan
 // @match        https://www.amazon.fr/review/create-review*
@@ -675,6 +675,8 @@
   align-items: stretch;
   cursor: auto;
   border: 2px solid #ccc; /* Ajout d'un contour */
+  overflow: auto; /* Ajout de défilement si nécessaire */
+  resize: both; /* Permet le redimensionnement horizontal et vertical */
 }
 
 #configPopup h2, #configPopup label {
@@ -826,6 +828,9 @@
 
     // Crée la fenêtre popup de configuration avec la fonction de déplacement
     async function createConfigPopup() {
+        if (document.getElementById('configPopup')) {
+            return; // Termine la fonction pour éviter de créer une nouvelle popup
+        }
         const popup = document.createElement('div');
         popup.id = "configPopup";
         popup.innerHTML = `
