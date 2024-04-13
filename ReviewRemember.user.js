@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ReviewRemember
 // @namespace    http://tampermonkey.net/
-// @version      1.3
+// @version      1.4
 // @description  Outils pour les avis Amazon
 // @author       Ashemka et MegaMan
 // @match        https://www.amazon.fr/review/create-review*
@@ -27,6 +27,9 @@
     //Correction du mot sur la page
     document.body.innerHTML = document.body.innerHTML.replace(/Vérifiées/g, 'Vérifiés');
 
+    //On initialise les infos pour la version mobile (ou non)
+    var pageX = "Page X";
+
     //On remplace l'image et son lien par notre menu
     function replaceImageUrl() {
         // Sélectionner le lien contenant l'image avec l'attribut alt "vine_logo_title"
@@ -38,6 +41,10 @@
             var img = link.querySelector('img');
             // Remplacer l'URL de l'image
             img.src = 'https://i.ibb.co/Ph6Bw85/RR2.png';
+            if (localStorage.getItem('mobileEnabled') == 'true') {
+                img.style.height = '35px'; // Définis une nouvelle hauteur pour l'image
+                img.style.width = 'auto'; // Assure que la largeur s'ajuste pour conserver les proportions
+            }
             // Modifier le comportement du lien pour empêcher le chargement de la page
             link.onclick = function(event) {
                 // Empêcher l'action par défaut du lien
@@ -47,8 +54,6 @@
             };
         }
     }
-
-    replaceImageUrl();
 
     //Export des avis
     function exportReviewsToCSV() {
@@ -644,7 +649,7 @@ body {
                 // Création du bouton "Aller à la page X"
                 const gotoButtonUp = document.createElement('li');
                 gotoButtonUp.className = 'a-last'; // Utiliser la même classe que le bouton "Suivant" pour le style
-                gotoButtonUp.innerHTML = `<a id="goToPageButton">Page X<span class="a-letter-space"></span><span class="a-letter-space"></span></a>`;
+                gotoButtonUp.innerHTML = `<a id="goToPageButton">${pageX}<span class="a-letter-space"></span><span class="a-letter-space"></span></a>`;
 
                 // Ajouter un événement click au bouton "Aller à"
                 gotoButtonUp.querySelector('a').addEventListener('click', function() {
@@ -654,7 +659,7 @@ body {
                 // Création du bouton "Aller à la page X"
                 const gotoButton = document.createElement('li');
                 gotoButton.className = 'a-last'; // Utiliser la même classe que le bouton "Suivant" pour le style
-                gotoButton.innerHTML = `<a id="goToPageButton">Page X<span class="a-letter-space"></span><span class="a-letter-space"></span></a>`;
+                gotoButton.innerHTML = `<a id="goToPageButton">${pageX}<span class="a-letter-space"></span><span class="a-letter-space"></span></a>`;
 
                 // Ajouter un événement click au bouton "Aller à"
                 gotoButton.querySelector('a').addEventListener('click', function() {
@@ -705,6 +710,7 @@ body {
     var footerEnabled = localStorage.getItem('footerEnabled');
     var headerEnabled = localStorage.getItem('headerEnabled');
     var pageEnabled = localStorage.getItem('pageEnabled');
+    var mobileEnabled = localStorage.getItem('mobileEnabled');
 
     // Initialiser à true si la clé n'existe pas dans le stockage local
     if (enableDateFunction === null) {
@@ -752,6 +758,17 @@ body {
         localStorage.setItem('pageEnabled', pageEnabled);
     }
 
+    if (mobileEnabled === null) {
+        mobileEnabled = 'false';
+        localStorage.setItem('mobileEnabled', mobileEnabled);
+    }
+
+    if (mobileEnabled === 'true') {
+        pageX = "X";
+        mobileDesign();
+    }
+    replaceImageUrl();
+
     if (enableDateFunction === 'true') {
         highlightDates();
     }
@@ -771,6 +788,7 @@ body {
     if (headerEnabled === 'true') {
         hideHeader();
     }
+
     if (pageEnabled === 'true') {
         addPage();
     }
@@ -969,6 +987,7 @@ body {
       ${createCheckbox('enableColorFunction', 'Changer la couleur de la barre de progression des avis', 'Change la couleur de la barre de progression des avis sur la page "Compte". Entre 0 et 59% -> Rouge, 60 à 89% -> Orange et supérieur à 90% -> Vert')}
       ${createCheckbox('filterEnabled', 'Cacher les avis approuvés', 'Dans l\'onglet "Vérifiées" de vos avis, si l\'avis  est Approuvé, alors il est caché')}
       ${createCheckbox('headerEnabled', 'Cacher totalement l\'entête de la page', 'Cache le haut de la page Amazon, celle avec la zone de recherche et les menus')}
+      ${createCheckbox('mobileEnabled', 'Utiliser l\'affichage mobile', 'Optimise l\affichage sur mobile, pour éviter de mettre la "Version PC". Il est conseillé de cacher également l\'entête avec cette option.')}
       ${createCheckbox('pageEnabled', 'Affichage des pages en partie haute', 'En plus des pages de navigation en partie basse, ajoute également la navigation des pages en haut')}
       ${createCheckbox('profilEnabled', 'Mise en avant des avis avec des votes utiles sur les profils Amazon','Surligne de la couleur définie les avis ayant un vote utile ou plus. Il est également mis en début de page. Le surlignage ne fonctionne pas si l\'avis possède des photos')}
       ${createCheckbox('footerEnabled', 'Supprimer le footer sur les profils Amazon (à décocher si les avis ne se chargent pas)', 'Supprime le bas de page sur les pages de profil Amazon, cela permet de charger plus facilement les avis sans descendre tout en bas de la page. Cela ne fonctionne que sur PC, donc à désactiver si vous avez le moindre problème sur cette page')}
@@ -1141,6 +1160,300 @@ body {
         document.head.appendChild(supFooter);
     }
 
+    function mobileDesign() {
+        var mobileCss = document.createElement('style');
+        // Sélectionne tous les liens qui ont des IDs correspondant au pattern "a-autoid-*-announce" pour modifier le texte
+        var links = document.querySelectorAll('.vvp-reviews-table--action-btn .a-button-text');
+
+        // Boucle à travers chaque lien pour changer le texte
+        links.forEach(function(link) {
+            if (link.textContent.trim() === "Donner un avis sur l'article") {
+                link.textContent = "Donner un avis";
+            } else if (link.textContent.trim() === "Modifier le commentaire") {
+                link.textContent = "Modifier l'avis";
+            }
+        });
+
+        links = document.querySelectorAll('.vvp-orders-table--action-btn .a-button-text');
+
+        // Boucle à travers chaque lien pour changer le texte
+        links.forEach(function(link) {
+            if (link.textContent.trim() === "Détails de la commande") {
+                link.textContent = "Détails";
+            }
+        });
+
+        mobileCss.textContent = `
+#configPopup, #keyConfigPopup, #favConfigPopup {
+  width: 350px !important;
+  height: 600px;
+}
+
+#colorPickerPopup {
+  width: 350px !important;
+}
+
+/* Taille dynamique pour mobile */
+@media (max-width: 600px) {
+  #configPopup {
+    width: 90%; /* Prendre 90% de la largeur de l'écran */
+    height: 90%;
+    margin: 10px auto; /* Ajout d'un peu de marge autour des popups */
+  }
+}
+
+@media (max-width: 600px) {
+  #colorPickerPopup, #keyConfigPopup, #favConfigPopup {
+    width: 90%; /* Prendre 90% de la largeur de l'écran */
+    margin: 10px auto; /* Ajout d'un peu de marge autour des popups */
+  }
+}
+
+/* Taille de police différente
+.a-ember body {
+     font-size : 12px !important;
+}*/
+
+/* Taille de police pour le texte gris de la page du compte */
+.grey-text {
+    font-size: 12px;
+}
+
+/* Taille des fonds gris sur le compte */
+#vvp-current-status-box {
+    height: 200px !important;
+}
+
+#vvp-vine-activity-metrics-box {
+    height: 320px !important;
+}
+
+.a-button-text {
+    /* Si nécessaire, ajustez aussi le padding pour .a-button-text */
+    padding: 2px; /* Ajustement du padding pour le texte du bouton */
+}
+
+/* Modification du bouton du rapport */
+.a-button-dropdown {
+    width: auto;
+    max-width: 300px;
+}
+
+.a-button-inner {
+    padding: 5px 10px;
+}
+
+.a-dropdown-prompt {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* On retire le texte de l'écran compte */
+#vvp-gold-status-perks-display * {
+    visibility: hidden;
+}
+
+.a-column.a-span6.a-span-last #vvp-you-are-awesome-display {
+    visibility: hidden;
+}
+
+body {
+  padding-right: 0px !important;
+}
+
+.a-section.vvp-items-button-and-search-container {
+  flex-direction: column !important;
+}
+
+.vvp-container-right-align {
+  margin-top: 10px !important;
+  width: 100% !important;
+  flex-grow: 1 !important;
+}
+
+.a-icon-search {
+  display: none;
+}
+
+.a-search {
+  flex-grow: 1;
+}
+
+#vvp-search-text-input {
+  width: 100% !important;
+}
+
+.a-tabs {
+  margin: 0px !important;
+}
+
+.a-tabs li a {
+  padding: 1rem !important;
+}
+
+.nav-mobile.nav-ftr-batmobile {
+  display: none;
+}
+
+.vvp-tab-set-container
+  [data-a-name="vine-items"]
+  .a-box-inner
+  .vvp-tab-content
+  .vvp-items-button-and-search-container {
+  margin: 0px !important;
+}
+
+#a-page
+  > div.a-container.vvp-body
+  > div.a-tab-container.vvp-tab-set-container
+  > ul {
+  margin-bottom: 0px !important;
+}
+
+.a-button-primary {
+  transition: 0.2s !important;
+}
+
+.a-button-primary .a-button-inner {
+  background-color: transparent !important;
+}
+
+.a-button-primary:hover {
+  opacity: 0.85 !important;
+}
+
+/* Pagination styles */
+.a-pagination {
+  display: flex !important;
+  justify-content: center;
+}
+
+.a-pagination li:first-child,
+.a-pagination li:last-child {
+  color: transparent !important;
+  position: relative;
+}
+
+.a-pagination li.a-disabled {
+  display: none !important;
+}
+
+.a-pagination li:first-child a,
+.a-pagination li:last-child a {
+  display: flex;
+  align-content: center;
+  position: relative;
+  justify-content: center;
+}
+
+.a-pagination li:first-child a:before,
+.a-pagination li:last-child a:before {
+  position: absolute !important;
+  color: white !important;
+  font-size: 2rem !important;
+  line-height: 4rem;
+  height: 100%;
+  width: 100%;
+}
+
+ul.a-pagination li:first-child a,  /* Cible le premier li de la liste, supposant que c'est Précédent */
+li:last-child.a-last a {     /* Cible les li avec classe 'a-last', supposant que c'est Suivant */
+    font-size: 0;
+}
+
+li:first-child a span.larr,  /* Cible le span larr dans le premier li */
+li.a-last a span.larr {      /* Cible le span larr dans les li a-last */
+    font-size: 16px;
+    visibility: visible;
+}
+
+.a-pagination li {
+  width: 40px !important;
+  height: 40px !important;
+}
+.a-pagination li a {
+  padding: 0px !important;
+  margin: 0px !important;
+  height: 100%;
+  line-height: 40px !important;
+}
+
+.vvp-details-btn {
+  padding: 0.25rem 0 !important;
+  margin: 0.25rem 0rem !important;
+}
+
+.vvp-details-btn .a-button-text {
+  padding: 0.5px 0.25px !important;
+}
+
+/* PRODUCT AND REVIEW PAGES */
+#vvp-product-details-img-container,
+#vvp-product-details-img-container img {
+  height: 75px;
+}
+
+#vvp-browse-nodes-container,
+#vvp-browse-nodes-container .parent-node,
+#vvp-browse-nodes-container .child-node {
+  width: unset !important;
+}
+
+.vvp-reviews-table .vvp-reviews-table--row,
+.vvp-orders-table .vvp-orders-table--row {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.vvp-reviews-table tbody,
+.vvp-orders-table tbody {
+  display: flex !important;
+  flex-wrap: wrap;
+}
+
+.vvp-reviews-table--heading-row,
+.vvp-orders-table--heading-row {
+  display: none !important;
+}
+
+.vvp-reviews-table td,
+.vvp-orders-table td {
+  padding-top: 0px !important;
+  padding-bottom: 0px !important;
+}
+
+.vvp-reviews-table td.vvp-reviews-table--image-col,
+.vvp-orders-table td.vvp-orders-table--image-col {
+  padding-top: 10px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.vvp-reviews-table td.vvp-reviews-table--image-col img,
+.vvp-orders-table td.vvp-orders-table--image-col img {
+  height: 75px;
+}
+
+.vvp-reviews-table--actions-col,
+.vvp-orders-table--actions-col {
+  width: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+#vvp-items-grid, #tab-unavailable, #tab-hidden, #tab-favourite {
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(var(--grid-column-width), auto)
+  ) !important;
+}
+		`;
+        document.head.appendChild(mobileCss);
+    }
+
     window.addEventListener('load', function () {
         //Active le bouton de téléchargement du rapport
         var element = document.querySelector('.vvp-tax-report-file-type-select-container.download-disabled');
@@ -1149,11 +1462,14 @@ body {
         }
 
         //Ajoute l'heure de l'évaluation
-        const timeStampElement = document.getElementById('vvp-eval-end-stamp');
-        const timeStamp = timeStampElement ? timeStampElement.textContent : null;
+        const timeStampElementEnd = document.getElementById('vvp-eval-end-stamp');
+        const timeStampElementJoin = document.getElementById('vvp-join-vine-stamp');
+        //const timeStampElementEnd = document.getElementById('vvp-eval-end-stamp');
+        const timeStampEnd = timeStampElementEnd ? timeStampElementEnd.textContent : null;
+        const timeStampJoin = timeStampElementJoin ? timeStampElementJoin.textContent : null;
 
-        if (timeStamp) {
-            const date = new Date(parseInt(timeStamp));
+        if (timeStampEnd) {
+            const date = new Date(parseInt(timeStampEnd));
             const optionsDate = { day: '2-digit', month: '2-digit', year: 'numeric' };
             const optionsTime = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
             const formattedDate = date.toLocaleDateString('fr-FR', optionsDate) + ' à ' + date.toLocaleTimeString('fr-FR', optionsTime);
@@ -1161,6 +1477,18 @@ body {
             const dateStringElement = document.getElementById('vvp-evaluation-date-string');
             if (dateStringElement) {
                 dateStringElement.innerHTML = `Réévaluation&nbsp;: <strong>${formattedDate}</strong>`;
+            }
+        }
+
+        if (timeStampJoin) {
+            const date = new Date(parseInt(timeStampJoin));
+            const optionsDate = { day: '2-digit', month: '2-digit', year: 'numeric' };
+            const optionsTime = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
+            const formattedDate = date.toLocaleDateString('fr-FR', optionsDate) + ' à ' + date.toLocaleTimeString('fr-FR', optionsTime);
+
+            const dateStringElement = document.getElementById('vvp-member-since-display');
+            if (dateStringElement) {
+                dateStringElement.innerHTML = `Membre depuis&nbsp;: <strong>${formattedDate}</strong>`;
             }
         }
 
