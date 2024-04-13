@@ -596,7 +596,7 @@ body {
   padding-right: 0px !important;
 }
 
-#navbar-main, #skiplink {
+#navbar-main, #nav-main, #skiplink {
   display: none;
 }
 
