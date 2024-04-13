@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ReviewRemember
 // @namespace    http://tampermonkey.net/
-// @version      1.2.2
+// @version      1.3
 // @description  Outils pour les avis Amazon
 // @author       Ashemka et MegaMan
 // @match        https://www.amazon.fr/review/create-review*
@@ -9,6 +9,9 @@
 // @match        https://www.amazon.fr/vine/vine-reviews*
 // @match        https://www.amazon.fr/vine/account
 // @match        https://www.amazon.fr/gp/profile/*
+// @match        https://www.amazon.fr/vine/orders*
+// @match        https://www.amazon.fr/gp/profile/*
+// @match        https://www.amazon.fr/vine/resources
 // @icon         https://i.ibb.co/yhNnKdS/RR-ICO-2-1.png
 // @updateURL    https://raw.githubusercontent.com/teitong/reviewremember/main/ReviewRemember.user.js
 // @downloadURL  https://raw.githubusercontent.com/teitong/reviewremember/main/ReviewRemember.user.js
@@ -584,6 +587,112 @@
         });
     }
 
+    //Suppression header
+    function hideHeader() {
+        var styleHeader = document.createElement('style');
+
+        styleHeader.textContent = `
+body {
+  padding-right: 0px !important;
+}
+
+#navbar-main, #skiplink {
+  display: none;
+}
+
+.amzn-ss-wrap {
+  display: none !important;
+}
+`
+        document.head.appendChild(styleHeader);
+    }
+
+    //Ajoute les pages en partie haute
+    function addPage() {
+        // Sélection du contenu HTML du div source
+        const sourceElement = document.querySelector('.a-text-center');
+        // Vérifier si l'élément source existe
+        if (sourceElement) {
+            // Maintenant que l'élément source a été mis à jour, copier son contenu HTML
+            const sourceContent = sourceElement.outerHTML;
+            const currentUrl = window.location.href;
+            // Création d'un nouveau div pour le contenu copié
+            const newDiv = document.createElement('div');
+            newDiv.innerHTML = sourceContent;
+            newDiv.style.textAlign = 'center'; // Centrer le contenu
+
+            // Sélection du div cible où le contenu sera affiché
+            //const targetDiv = document.querySelector('.vvp-tab-content .vvp-tab-content');
+            var targetDiv = false;
+            if (currentUrl.includes("vine-reviews")) {
+                targetDiv = document.querySelector('.vvp-reviews-table--heading-top');
+                targetDiv.parentNode.insertBefore(newDiv, targetDiv);
+            } else if (currentUrl.includes("orders")) {
+                targetDiv = document.querySelector('.vvp-tab-content .vvp-orders-table--heading-top');
+                targetDiv.parentNode.insertBefore(newDiv, targetDiv);
+            }
+
+            // Trouver ou créer le conteneur de pagination si nécessaire
+            let paginationContainer = sourceElement.querySelector('.a-pagination');
+            if (!paginationContainer) {
+                paginationContainer = document.createElement('ul');
+                paginationContainer.className = 'a-pagination';
+                sourceElement.appendChild(paginationContainer);
+            }
+            //Ajout du bouton "Aller à" en haut et en bas
+            if (currentUrl.includes("orders") || currentUrl.includes("vine-reviews")) {
+                // Création du bouton "Aller à la page X"
+                const gotoButtonUp = document.createElement('li');
+                gotoButtonUp.className = 'a-last'; // Utiliser la même classe que le bouton "Suivant" pour le style
+                gotoButtonUp.innerHTML = `<a id="goToPageButton">Page X<span class="a-letter-space"></span><span class="a-letter-space"></span></a>`;
+
+                // Ajouter un événement click au bouton "Aller à"
+                gotoButtonUp.querySelector('a').addEventListener('click', function() {
+                    askPage();
+                });
+
+                // Création du bouton "Aller à la page X"
+                const gotoButton = document.createElement('li');
+                gotoButton.className = 'a-last'; // Utiliser la même classe que le bouton "Suivant" pour le style
+                gotoButton.innerHTML = `<a id="goToPageButton">Page X<span class="a-letter-space"></span><span class="a-letter-space"></span></a>`;
+
+                // Ajouter un événement click au bouton "Aller à"
+                gotoButton.querySelector('a').addEventListener('click', function() {
+                    askPage();
+                });
+                //On insère Page X en début de page
+                newDiv.querySelector('.a-pagination').insertBefore(gotoButtonUp, newDiv.querySelector('.a-last'));
+                //On insère en bas de page
+                paginationContainer.insertBefore(gotoButton, paginationContainer.querySelector('.a-last'));
+            }
+        }
+    }
+
+    function askPage() {
+        const userInput = prompt("Saisir la page où se rendre");
+        const pageNumber = parseInt(userInput, 10); // Convertit en nombre en base 10
+        if (!isNaN(pageNumber)) { // Vérifie si le résultat est un nombre
+            // Obtient l'URL actuelle
+            const currentUrl = window.location.href;
+            // Crée un objet URL pour faciliter l'analyse des paramètres de l'URL
+            const urlObj = new URL(currentUrl);
+            var newUrl = "";
+            if (window.location.href.includes("vine-reviews")) {
+                const reviewType = urlObj.searchParams.get('review-type') || '';
+                // Construit la nouvelle URL avec le numéro de page
+                newUrl = `https://www.amazon.fr/vine/vine-reviews?page=${pageNumber}&review-type=${reviewType}`;
+                // Redirige vers la nouvelle URL
+            } else if (window.location.href.includes("orders")) {
+                // Construit la nouvelle URL avec le numéro de page et la valeur de 'pn' existante
+                newUrl = `https://www.amazon.fr/vine/orders?page=${pageNumber}`;
+            }
+            console.log(newUrl);
+            window.location.href = newUrl;
+        } else {
+            alert("Veuillez saisir un numéro de page valide.");
+        }
+    }
+
     //localStorage.removeItem('enableDateFunction');
     //localStorage.removeItem('enableReviewStatusFunction');
     //localStorage.removeItem('enableColorFunction');
@@ -594,6 +703,8 @@
     var filterEnabled = localStorage.getItem('filterEnabled');
     var profilEnabled = localStorage.getItem('profilEnabled');
     var footerEnabled = localStorage.getItem('footerEnabled');
+    var headerEnabled = localStorage.getItem('headerEnabled');
+    var pageEnabled = localStorage.getItem('pageEnabled');
 
     // Initialiser à true si la clé n'existe pas dans le stockage local
     if (enableDateFunction === null) {
@@ -631,6 +742,16 @@
         localStorage.setItem('footerEnabled', footerEnabled);
     }
 
+    if (headerEnabled === null) {
+        headerEnabled = 'false';
+        localStorage.setItem('headerEnabled', headerEnabled);
+    }
+
+    if (pageEnabled === null) {
+        pageEnabled = 'true';
+        localStorage.setItem('pageEnabled', pageEnabled);
+    }
+
     if (enableDateFunction === 'true') {
         highlightDates();
     }
@@ -645,6 +766,13 @@
 
     if (filterEnabled === 'true') {
         masquerLignesApprouve();
+    }
+
+    if (headerEnabled === 'true') {
+        hideHeader();
+    }
+    if (pageEnabled === 'true') {
+        addPage();
     }
 
     if (enableReviewStatusFunction === 'true' || enableDateFunction === 'true') {
@@ -840,6 +968,8 @@
       ${createCheckbox('enableReviewStatusFunction', 'Surlignage des avis vérifiés', 'Change la couleur du "Statut du commentaire" dans vos avis "Vérifiées" en fonction de leur statut actuel (Approuvé, Non approuvé, etc...)')}
       ${createCheckbox('enableColorFunction', 'Changer la couleur de la barre de progression des avis', 'Change la couleur de la barre de progression des avis sur la page "Compte". Entre 0 et 59% -> Rouge, 60 à 89% -> Orange et supérieur à 90% -> Vert')}
       ${createCheckbox('filterEnabled', 'Cacher les avis approuvés', 'Dans l\'onglet "Vérifiées" de vos avis, si l\'avis  est Approuvé, alors il est caché')}
+      ${createCheckbox('headerEnabled', 'Cacher totalement l\'entête de la page', 'Cache le haut de la page Amazon, celle avec la zone de recherche et les menus')}
+      ${createCheckbox('pageEnabled', 'Affichage des pages en partie haute', 'En plus des pages de navigation en partie basse, ajoute également la navigation des pages en haut')}
       ${createCheckbox('profilEnabled', 'Mise en avant des avis avec des votes utiles sur les profils Amazon','Surligne de la couleur définie les avis ayant un vote utile ou plus. Il est également mis en début de page. Le surlignage ne fonctionne pas si l\'avis possède des photos')}
       ${createCheckbox('footerEnabled', 'Supprimer le footer sur les profils Amazon (à décocher si les avis ne se chargent pas)', 'Supprime le bas de page sur les pages de profil Amazon, cela permet de charger plus facilement les avis sans descendre tout en bas de la page. Cela ne fonctionne que sur PC, donc à désactiver si vous avez le moindre problème sur cette page')}
        </div>
@@ -997,6 +1127,18 @@
         }
     `;
         document.head.appendChild(styleFooter);
+    }
+
+    //Suppression footer partout sauf sur le profil car configurable
+    if (!window.location.href.startsWith("https://www.amazon.fr/gp/profile/")) {
+        var supFooter = document.createElement('style');
+
+        supFooter.textContent = `
+#rhf, #rhf-shoveler, .rhf-frame, #navFooter {
+  display: none !important;
+}
+`
+        document.head.appendChild(supFooter);
     }
 
     window.addEventListener('load', function () {
