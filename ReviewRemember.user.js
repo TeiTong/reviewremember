@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ReviewRemember
 // @namespace    http://tampermonkey.net/
-// @version      1.4
+// @version      1.5
 // @description  Outils pour les avis Amazon
 // @author       Ashemka et MegaMan
 // @match        https://www.amazon.fr/review/create-review*
@@ -26,6 +26,27 @@
 
     //Correction du mot sur la page
     document.body.innerHTML = document.body.innerHTML.replace(/Vérifiées/g, 'Vérifiés');
+
+    // Sélectionne tous les liens qui ont des IDs correspondant au pattern "a-autoid-*-announce" pour modifier le texte
+    var links = document.querySelectorAll('.vvp-reviews-table--action-btn .a-button-text');
+
+    // Boucle à travers chaque lien pour changer le texte
+    links.forEach(function(link) {
+        if (link.textContent.trim() === "Donner un avis sur l'article") {
+            link.textContent = "Donner un avis";
+        } else if (link.textContent.trim() === "Modifier le commentaire") {
+            link.textContent = "Modifier l'avis";
+        }
+    });
+
+    links = document.querySelectorAll('.vvp-orders-table--action-btn .a-button-text');
+
+    // Boucle à travers chaque lien pour changer le texte
+    links.forEach(function(link) {
+        if (link.textContent.trim() === "Détails de la commande") {
+            link.textContent = "Détails";
+        }
+    });
 
     //On initialise les infos pour la version mobile (ou non)
     var pageX = "Page X";
@@ -185,6 +206,7 @@
         reorganiserCartes();
         //Fin tri profil
     }
+
     function setHighlightColor() {
         // Extraire les composantes r, g, b de la couleur actuelle
         const rgbaMatch = reviewColor.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+),\s*(\d*\.?\d+)\)$/);
@@ -205,7 +227,7 @@
         // Crée la fenêtre popup
         const popup = document.createElement('div');
         popup.id = "colorPickerPopup";
-        popup.style.cssText = `
+        /*popup.style.cssText = `
         position: fixed;
         z-index: 10001;
         left: 50%;
@@ -215,7 +237,7 @@
         background-color: white;
         border: 1px solid #ccc;
         box-shadow: 0px 0px 10px #ccc;
-    `;
+    `;*/
         popup.innerHTML = `
           <h2 id="configPopupHeader">Couleur de surbrillance des nouveaux produits<span id="closeColorPicker" style="float: right; cursor: pointer;">&times;</span></h2>
         <input type="color" id="colorPicker" value="${hexColor}" style="width: 100%;">
@@ -420,7 +442,7 @@
     }
 
     //Fonctions pour les couleurs des avis
-    // Fonction pour changer la couleur de la barre en fonction du pourcentage
+    //Fonction pour changer la couleur de la barre en fonction du pourcentage
     function changeColor() {
         if (document.URL === "https://www.amazon.fr/vine/account") {
             var progressBar = document.querySelector('#vvp-perc-reviewed-metric-display .animated-progress span');
@@ -698,6 +720,310 @@ body {
         }
     }
 
+    // Fonction pour extraire le numéro de commande de l'URL
+    function extractOrderId(url) {
+        const match = url.match(/orderID=([0-9-]+)/);
+        return match ? match[1] : null;
+    }
+
+    function extractASIN(input) {
+        // Expression régulière pour identifier un ASIN dans une URL ou directement
+        const regex = /\/dp\/([A-Z0-9]{10})|([A-Z0-9]{10})/;
+        const match = input.match(regex);
+        if (match) {
+            return match[1] || match[2];
+        }
+        return null;
+    }
+
+    //Pour sauvegarder le contenu des commandes, si on est sur la page des commandes
+    function saveOrders() {
+        if (window.location.href.includes('orders')) {
+            // Extraction des données de chaque ligne de produit
+            document.querySelectorAll('.vvp-orders-table--row').forEach(row => {
+                const productUrl = row.querySelector('.vvp-orders-table--text-col a').href;
+                const asin = extractASIN(productUrl);
+                const key_asin = "order_" + asin
+                if (!localStorage.getItem(key_asin)) {
+                    const imageUrl = row.querySelector('.vvp-orders-table--image-col img').src;
+                    const productName = row.querySelector('.vvp-orders-table--text-col a').textContent.trim();
+                    const timestampElement = row.querySelector('[data-order-timestamp]');
+                    const orderDate = timestampElement ? new Date(parseInt(timestampElement.getAttribute('data-order-timestamp'))).toLocaleDateString("fr-FR") : null;
+                    const etv = row.querySelector('.vvp-orders-table--text-col.vvp-text-align-right').textContent.trim();
+                    const orderDetailsUrl = row.querySelector('.vvp-orders-table--action-btn a').href;
+                    const orderId = extractOrderId(orderDetailsUrl);
+
+                    // Préparation de l'objet à stocker
+                    const productData = {
+                        productName,
+                        imageUrl,
+                        orderDate,
+                        etv,
+                        orderId
+                    };
+                    //console.log(productData);
+
+                    // Stockage dans localStorage avec l'ASIN comme clé
+                    localStorage.setItem(key_asin, JSON.stringify(productData));
+                }
+            });
+        }
+    }
+
+    function addMail() {
+        if (!window.location.href.includes('review-type=completed')) {
+            const rows = document.querySelectorAll('.vvp-reviews-table--row');
+            rows.forEach(row => {
+                //const productUrl = row.querySelector('.vvp-reviews-table--text-col a').href;
+                const productCell = row.querySelector('.vvp-reviews-table--text-col');
+                let asin;
+
+                if (productCell.querySelector('a')) {
+                    // L'URL existe dans un lien, on extrait depuis l'href
+                    const productUrl = productCell.querySelector('a').href;
+                    asin = extractASIN(productUrl);
+                } else {
+                    // Directement disponible comme texte dans la cellule
+                    asin = extractASIN(productCell.textContent);
+                }
+                //const asin = extractASIN(productUrl);
+                const key_asin = "email_" + asin;
+                // Clé pour le numéro de commande
+                const orderKey_asin = "order_" + asin;
+
+                // Créer la checkbox
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = 'check_' + asin;
+                checkbox.style.margin = '7px';
+
+                // Définir la taille de la checkbox
+                checkbox.style.width = '15px';
+                checkbox.style.height = '15px';
+
+                // Créer la liste déroulante
+                const select = document.createElement('select');
+                select.id = 'reason_' + asin;
+
+                const defaultEmailTemplates = [
+                    { title: 'Produit non reçu', text: 'Bonjour,\n\nJe n\'ai jamais reçu le produit suivant, pouvez-vous le retirer de ma liste ?\n\nCommande : $order\nASIN : $asin\n\nCordialement.' },
+                    { title: 'Produit supprimé', text: 'Bonjour,\n\nLe produit suivant a été supprimé, pouvez-vous le retirer de ma liste ?\n\nCommande : $order\nASIN : $asin\n\nCordialement.' },
+                    { title: 'Avis en doublon', text: 'Bonjour,\n\nJe ne peux pas déposer d\'avis sur le produit suivant, pouvez-vous le retirer de ma liste ?\n\nCommande : $order\nASIN : $asin\n\nCordialement.' }
+                ];
+                // Récupérer les modèles depuis localStorage
+                const emailTemplates = JSON.parse(localStorage.getItem('emailTemplates')) || defaultEmailTemplates;
+                if (!localStorage.getItem('emailTemplates')) {
+                    localStorage.setItem('emailTemplates', JSON.stringify(defaultEmailTemplates));
+                }
+                emailTemplates.forEach(template => {
+                    const option = document.createElement('option');
+                    option.value = template.title;
+                    option.textContent = template.title; // ou template.text selon ce que vous voulez afficher
+                    select.appendChild(option);
+                });
+
+                // Gérer l'état initial à partir de localStorage
+                const storedData = JSON.parse(localStorage.getItem(key_asin));
+                if (storedData) {
+                    checkbox.checked = true;
+                    select.value = storedData.reason;
+                }
+
+                // Gérer l'activation de la liste déroulante
+                const orderDataExists = localStorage.getItem(orderKey_asin);
+                if (!orderDataExists) {
+                    select.disabled = true; // Désactive la liste déroulante
+                    select.innerHTML = '<option>Numéro de commande absent</option>';
+                    checkbox.disabled = true; // Désactive la checkbox
+                } else {
+                    // Active ou désactive la checkbox en fonction de son état actuel
+                    checkbox.disabled = false; // Assure-toi que la checkbox est activée
+                    select.disabled = !checkbox.checked; // Active ou désactive la liste déroulante basée sur l'état de la checkbox
+                }
+
+                // Écouter les changements de checkbox
+                checkbox.addEventListener('change', () => {
+                    if (checkbox.checked) {
+                        // Activer la liste déroulante
+                        select.disabled = false;
+                        const reason = select.value;
+                        localStorage.setItem(key_asin, JSON.stringify({ asin, reason }));
+                    } else {
+                        // Désactiver la liste déroulante
+                        select.disabled = true;
+                        localStorage.removeItem(key_asin);
+                    }
+                });
+
+                // Sauvegarder les modifications de la liste déroulante
+                select.addEventListener('change', () => {
+                    if (checkbox.checked) {
+                        const reason = select.value;
+                        localStorage.setItem(key_asin, JSON.stringify({ asin, reason }));
+                    }
+                });
+
+                // Ajouter les éléments à la ligne
+                const actionCol = row.querySelector('.vvp-reviews-table--actions-col');
+                const inlineContainer = document.createElement('div');
+                inlineContainer.style.display = 'flex';
+                inlineContainer.style.flexFlow = 'row nowrap'; // Force les éléments à s'aligner horizontalement
+                inlineContainer.style.alignItems = 'center'; // Aligner les éléments verticalement
+
+                // Ajoute la checkbox et la liste déroulante au nouveau div
+                inlineContainer.appendChild(checkbox);
+                inlineContainer.appendChild(select);
+                // Ajouter le nouveau div au conteneur d'actions existant
+                actionCol.appendChild(inlineContainer);
+            });
+            addEmailButton();
+        }
+    }
+
+    function addEmailButton() {
+        const header = document.querySelector('.vvp-reviews-table--heading-top');
+
+        // Créer un conteneur pour le bouton et l'email qui seront alignés à droite
+        const actionsContainer = document.createElement('div');
+        if (mobileEnabled == 'true') {
+            actionsContainer.style.cssText = 'right: 0; top: 0;';
+        } else {
+            actionsContainer.style.cssText = 'text-align: right; position: absolute; right: 0; top: 0;';
+        }
+
+        // Imiter le style du bouton Amazon pour le bouton 'Générer email'
+        const button = document.createElement('span');
+        button.className = 'a-button a-button-primary vvp-reviews-table--action-btn';
+        button.style.marginRight = '10px'; // Marge à droite du bouton
+        button.style.marginTop = '10px'; // Marge en haut du bouton
+        button.style.marginBottom = '5px'; // Marge en haut du bouton
+        button.style.paddingLeft = '12px';
+        button.style.paddingRight = '12px';
+        const buttonInner = document.createElement('span');
+        buttonInner.className = 'a-button-inner';
+        const buttonText = document.createElement('a');
+        buttonText.className = 'a-button-text';
+        buttonText.textContent = 'Générer email';
+        buttonText.href = 'javascript:void(0)';
+        buttonText.addEventListener('click', function() {
+            const emailText = generateEmail();
+            navigator.clipboard.writeText(emailText).then(() => {
+                if (emailText != null) {
+                    alert(emailText);
+                    window.location.reload();
+                }
+            }).catch(err => {
+                console.error('Erreur lors de la copie :', err);
+            });
+        });
+        // Réduction du padding sur `buttonText`
+        buttonText.style.paddingLeft = '2px'; // Ajustez selon vos besoins
+        buttonText.style.paddingRight = '2px'; // Ajustez selon vos besoins
+
+        buttonInner.style.paddingLeft = '0px'; // Enlève le padding à gauche
+        buttonInner.style.paddingRight = '0px'; // Enlève le padding à droite
+
+        buttonInner.appendChild(buttonText);
+        button.appendChild(buttonInner);
+
+        // Conteneur et style pour l'email
+        const emailSpan = document.createElement('div');
+        emailSpan.innerHTML = 'Support : <a href="javascript:void(0)" style="text-decoration: underline; color: blue;">vine-support@amazon.fr</a>';
+        emailSpan.style.marginRight = '5px';
+        // Gestionnaire d'événements pour copier l'email
+        const emailLink = emailSpan.querySelector('a');
+        emailLink.addEventListener('click', function() {
+            navigator.clipboard.writeText('vine-support@amazon.fr').then(() => {
+                alert('Email copié dans le presse-papiers');
+            }).catch(err => {
+                console.error('Erreur lors de la copie :', err);
+            });
+        });
+
+        // Ajouter le bouton et l'email au conteneur d'actions
+        actionsContainer.appendChild(button);
+        actionsContainer.appendChild(emailSpan);
+
+        // Ajouter le conteneur d'actions à l'en-tête
+        if (header) {
+            header.style.position = 'relative'; // S'assure que le positionnement absolu de actionsContainer fonctionne correctement
+            header.appendChild(actionsContainer);
+        }
+    }
+
+    function generateEmail() {
+        // Trouver tous les ASINs cochés dans localStorage
+        const keys = Object.keys(localStorage);
+        const checkedAsins = keys.filter(key => key.startsWith("email_") && localStorage.getItem(key));
+        const emailData = checkedAsins.map(key => {
+            const asin = key.split("_")[1];
+            const data = JSON.parse(localStorage.getItem(key));
+            const orderData = JSON.parse(localStorage.getItem("order_" + asin));
+            const selectedTemplate = JSON.parse(localStorage.getItem('emailTemplates')).find(t => t.title === data.reason);
+            return { asin, reason: data.reason, orderData, selectedTemplate, key };
+        });
+
+        if (emailData.length === 0) {
+            alert("Aucun produit n'est sélectionné pour l'envoi d'email.");
+            return null;
+        }
+
+        if (emailData.length === 1) {
+            // Utiliser le modèle spécifique pour un seul produit
+            const { asin, reason, orderData, selectedTemplate, key } = emailData[0];
+
+            if (selectedTemplate && orderData) {
+                let emailText = selectedTemplate.text.replace(/\$asin/g, asin)
+                .replace(/\$(commande|order|cmd)/gi, orderData.orderId)
+                .replace(/\$(nom|name|titre|title)/gi, orderData.productName)
+                .replace(/\$(date)/gi, orderData.orderDate)
+                .replace(/\$(reason|raison)/gi, reason);
+                //navigator.clipboard.writeText(emailText);
+                //alert(emailText);
+                localStorage.removeItem(key);
+                //window.location.reload();
+                return emailText;
+            } else {
+                alert("Il manque des données pour générer l'email.");
+            }
+        } else {
+            // Utiliser le modèle multiproduits
+            var multiProductTemplate = JSON.parse(localStorage.getItem('multiProductEmailTemplate'));
+            if (!multiProductTemplate) {
+                initmultiProductTemplate();
+                multiProductTemplate = JSON.parse(localStorage.getItem('multiProductEmailTemplate'));
+            }
+            let emailText = multiProductTemplate.text;
+            const productDetailsSegmentMatch = emailText.match(/\$debut(.*?)\$fin/s);
+            if (!productDetailsSegmentMatch) {
+                alert("Le modèle d'email multiproduits est mal formé ou les balises $debut/$fin sont absentes.");
+                return;
+            }
+            const productDetailsSegment = productDetailsSegmentMatch[1];
+
+            const productDetails = emailData.map(({ asin, orderData, reason }) => {
+                if (!orderData) return "Données manquantes pour un ou plusieurs produits.";
+
+                return productDetailsSegment
+                    .replace(/\$asin/g, asin)
+                    .replace(/\$(commande|order|cmd)/gi, orderData.orderId)
+                    .replace(/\$(nom|name|titre|title)/gi, orderData.productName)
+                    .replace(/\$(date)/gi, orderData.orderDate)
+                    .replace(/\$(reason|raison)/gi, reason);
+            }).join("");
+
+            emailText = emailText.replace(/\$debut.*?\$fin/s, productDetails);
+            //navigator.clipboard.writeText(emailText);
+            //alert(emailText);
+            // Supprimer les données des checkbox après la génération de l'email pour tous les ASINs concernés
+            emailData.forEach(({ key }) => {
+                localStorage.removeItem(key);
+            });
+            //window.location.reload();
+            return emailText;
+        }
+    }
+
     //localStorage.removeItem('enableDateFunction');
     //localStorage.removeItem('enableReviewStatusFunction');
     //localStorage.removeItem('enableColorFunction');
@@ -711,6 +1037,7 @@ body {
     var headerEnabled = localStorage.getItem('headerEnabled');
     var pageEnabled = localStorage.getItem('pageEnabled');
     var mobileEnabled = localStorage.getItem('mobileEnabled');
+    var emailEnabled = localStorage.getItem('emailEnabled');
 
     // Initialiser à true si la clé n'existe pas dans le stockage local
     if (enableDateFunction === null) {
@@ -763,6 +1090,11 @@ body {
         localStorage.setItem('mobileEnabled', mobileEnabled);
     }
 
+    if (emailEnabled === null) {
+        emailEnabled = 'true';
+        localStorage.setItem('emailEnabled', emailEnabled);
+    }
+
     if (mobileEnabled === 'true') {
         pageX = "X";
         mobileDesign();
@@ -800,12 +1132,247 @@ body {
     if (profilEnabled === 'true') {
         changeProfil();
     }
+
+    if (emailEnabled === 'true') {
+        saveOrders();
+        addMail();
+    }
     //End
     //Ajout du menu
+
+    // Création de la popup pour les raisons de refus
+    function createEmailPopup() {
+        if (document.getElementById('emailTemplates')) {
+            return; // Termine la fonction pour éviter de créer une nouvelle popup
+        }
+        // Création de la popup
+        const popup = document.createElement('div');
+        popup.id = "emailPopup";
+        /* popup.style.cssText = `
+        position: fixed;
+        z-index: 10001;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        padding: 20px;
+        background-color: white;
+        border: 1px solid #ccc;
+        box-shadow: 0px 0px 10px #ccc;
+    `;*/
+        popup.innerHTML = `
+<div id="emailConfigPopup">
+<div style="position: relative;">
+    <h2 id="emailPopupHeader" style="text-align: center;">Configuration des Emails</h2>
+    <span id="closeEmailPopup" style="position: absolute; right: 10px; top: 10px; cursor: pointer;">&times;</span>
+</div>
+<div id="emailTemplates" style="display: flex; flex-direction: column; align-items: center;">
+    <h3>Modèles existants</h3>
+    <select id="existingTemplates" style="margin-bottom: 10px;margin-top: 10px;"></select>
+<div style="display: flex; flex-direction: row; align-items: center; width: 100%;">
+    <button id="loadTemplateButton" class="button-container action-buttons" style="text-align: center; margin-right: 10px; display: flex; align-items: center; justify-content: center;">Charger le modèle</button>
+    <button id="loadMultiProductTemplateButton" class="button-container action-buttons" style="text-align: center; display: flex; align-items: center; justify-content: center;">Charger le modèle multiproduits</button>
+</div>
+</div>
+<div id="templateDetails">
+    <h3 id="templateActionTitle" style="text-align: center;">Ajouter un nouveau modèle</h3>
+    <input type="text" id="templateTitle" placeholder="Titre du modèle" style="margin-right: 10px; margin-bottom: 10px; margin-top: 10px;" />
+    <span id="helpIcon" style="cursor: pointer; font-size: 15px; user-select: none;">?</span>
+    <textarea id="templateText" placeholder="Texte du modèle" rows="10"></textarea>
+    <div class="button-container action-buttons">
+    <button id="saveTemplateButton" class="full-width">Ajouter</button>
+    <button id="closeEmailConfig" class="full-width">Fermer</button>
+    <button id="deleteTemplateButton" class="full-width" style="display:none; text-align: center;margin-top: 10px">Supprimer</button>
+    </div>
+</div>
+</div>
+`;
+
+        document.body.appendChild(popup);
+
+        document.getElementById('helpIcon').addEventListener('click', function() {
+            alert('Informations sur la rédaction des modèles.\n\n' +
+                  'Liste des variables qui seront remplacées lors de la génération du mail :\n' +
+                  '- $asin : ASIN du produit\n' +
+                  '- $order : numéro de commande\n' +
+                  '- $reason : raison de la suppression\n' +
+                  '- $nom : nom du produit\n' +
+                  '- $date : date de la commande\n\n' +
+                  'Sur le mail multiproduits, les balises $debut et $fin délimitent la zone de texte qui sera générée pour chaque produit.\n\n' +
+                  'Le titre du modèle servira aussi de raison de suppression lors de la génération multiproduits ($reason).');
+        });
+
+        // Boutons et leurs événements
+        document.getElementById('closeEmailPopup').addEventListener('click', () => popup.remove());
+        document.getElementById('closeEmailConfig').addEventListener('click', () => popup.remove());
+        document.getElementById('saveTemplateButton').addEventListener('click', saveEmailTemplate);
+        document.getElementById('loadTemplateButton').addEventListener('click', loadSelectedTemplate);
+        document.getElementById('deleteTemplateButton').addEventListener('click', deleteSelectedTemplate);
+        document.getElementById('loadMultiProductTemplateButton').addEventListener('click', loadMultiProductTemplate);
+
+        // Charger les modèles existants dans la liste déroulante
+        loadEmailTemplatesDropdown();
+    }
+
+    function loadMultiProductTemplate() {
+        const multiProductTemplateKey = 'multiProductEmailTemplate';
+        // Charger le modèle multiproduits ou initialiser avec le modèle par défaut
+        let multiProductTemplate = JSON.parse(localStorage.getItem(multiProductTemplateKey));
+        if (!multiProductTemplate) {
+            initmultiProductTemplate();
+        }
+
+        // Remplissez les champs avec les données du modèle multiproduits
+        document.getElementById('templateTitle').value = multiProductTemplate.title;
+        document.getElementById('templateText').value = multiProductTemplate.text;
+
+        // Changez l'interface pour refléter que l'utilisateur modifie le modèle multiproduits
+        document.getElementById('templateActionTitle').innerText = 'Modifier le modèle multiproduits';
+        document.getElementById('saveTemplateButton').innerText = 'Enregistrer';
+        document.getElementById('deleteTemplateButton').style.display = 'none'; // Cache le bouton supprimer car ce modèle ne peut pas être supprimé
+
+        // Stockez l'index ou la clé du modèle multiproduits
+        selectedTemplateIndex = multiProductTemplateKey; // Utilisez une clé spéciale ou un index pour identifier le modèle multiproduits
+    }
+
+    function initmultiProductTemplate() {
+        const multiProductTemplateKey = 'multiProductEmailTemplate';
+        const defaultMultiProductTemplate = {
+            title: 'Mail multiproduits',
+            text: 'Bonjour,\n\nVoici une liste de commande à supprimer de mes avis :\n$debut\nASIN : $asin\nCommande : $order\nRaison : $raison\n$fin\nCordialement.'
+        };
+        const multiProductTemplate = defaultMultiProductTemplate;
+        localStorage.setItem(multiProductTemplateKey, JSON.stringify(multiProductTemplate));
+    }
+
+    function loadEmailTemplatesDropdown() {
+        // Charger la liste des modèles existants dans la liste déroulante
+        const templates = JSON.parse(localStorage.getItem('emailTemplates') || '[]');
+        const templatesDropdown = document.getElementById('existingTemplates');
+        templatesDropdown.innerHTML = templates.map((template, index) =>
+                                                    `<option value="${index}">${template.title}</option>`
+                                                   ).join('');
+        templatesDropdown.selectedIndex = -1; // Aucune sélection par défaut
+    }
+
+    function addEmailTemplate() {
+        const title = document.getElementById('newTemplateTitle').value;
+        const text = document.getElementById('newTemplateText').value;
+        if (title && text) {
+            const templates = JSON.parse(localStorage.getItem('emailTemplates') || '[]');
+            templates.push({ title, text });
+            localStorage.setItem('emailTemplates', JSON.stringify(templates));
+            loadEmailTemplates(); // Recharger la liste des modèles
+        } else {
+            alert('Veuillez remplir le titre et le texte du modèle.');
+        }
+    }
+
+    function loadSelectedTemplate() {
+        const selectedIndex = document.getElementById('existingTemplates').value;
+        if (selectedIndex !== null) {
+            const templates = JSON.parse(localStorage.getItem('emailTemplates') || '[]');
+            const selectedTemplate = templates[selectedIndex];
+            document.getElementById('templateTitle').value = selectedTemplate.title;
+            document.getElementById('templateText').value = selectedTemplate.text;
+            selectedTemplateIndex = selectedIndex; // Mettre à jour l'index sélectionné
+
+            // Mettre à jour les textes des boutons et afficher le bouton Supprimer
+            document.getElementById('templateActionTitle').innerText = 'Modifier le modèle';
+            document.getElementById('saveTemplateButton').innerText = 'Enregistrer';
+            document.getElementById('deleteTemplateButton').style.display = 'inline';
+        }
+    }
+
+    function loadEmailTemplates() {
+        const templates = JSON.parse(localStorage.getItem('emailTemplates') || '[]');
+        const templatesContainer = document.getElementById('existingTemplates');
+        templatesContainer.innerHTML = '';
+        templates.forEach((template, index) => {
+            const templateDiv = document.createElement('div');
+            templateDiv.className = 'template-entry';
+            templateDiv.dataset.index = index;
+            templateDiv.innerHTML = `
+<b>${template.title}</b>
+<p>${template.text}</p>
+`;
+            templateDiv.onclick = function() {
+                selectTemplate(this);
+            }
+            templatesContainer.appendChild(templateDiv);
+        });
+    }
+
+    function selectTemplate(element) {
+        // Désélectionner le précédent élément sélectionné
+        document.querySelectorAll('.template-entry.selected').forEach(e => e.classList.remove('selected'));
+
+        // Sélectionner le nouvel élément
+        element.classList.add('selected');
+        selectedTemplateIndex = parseInt(element.dataset.index);
+
+        // Remplir les champs de modification avec les données du modèle sélectionné
+        const templates = JSON.parse(localStorage.getItem('emailTemplates') || '[]');
+        if (templates[selectedTemplateIndex]) {
+            document.getElementById('editTemplateTitle').value = templates[selectedTemplateIndex].title;
+            document.getElementById('editTemplateText').value = templates[selectedTemplateIndex].text;
+        }
+    }
+
+    function saveEmailTemplate() {
+        const title = document.getElementById('templateTitle').value;
+        const text = document.getElementById('templateText').value;
+        const templates = JSON.parse(localStorage.getItem('emailTemplates') || '[]');
+
+        if (title.trim() === '' || text.trim() === '') {
+            alert('Le titre et le texte du modèle ne peuvent pas être vides.');
+            return;
+        }
+        if (selectedTemplateIndex === 'multiProductEmailTemplate') { // Si le modèle multiproduits est en cours de modification
+            const title = document.getElementById('templateTitle').value;
+            const text = document.getElementById('templateText').value;
+            const multiProductTemplate = { title, text };
+            localStorage.setItem('multiProductEmailTemplate', JSON.stringify(multiProductTemplate));
+        } else if (selectedTemplateIndex !== null) { // Si un modèle est sélectionné, le mettre à jour
+            templates[selectedTemplateIndex] = { title, text };
+            selectedTemplateIndex = null; // Réinitialiser l'index sélectionné après la sauvegarde
+        } else { // Sinon, ajouter un nouveau modèle
+            templates.push({ title, text });
+        }
+
+        localStorage.setItem('emailTemplates', JSON.stringify(templates));
+        loadEmailTemplatesDropdown(); // Recharger la liste déroulante
+
+        clearTemplateFields(); // Fonction pour vider les champs
+    }
+
+    function clearTemplateFields() {
+        // Vider les champs de saisie et réinitialiser les libellés des boutons
+        document.getElementById('templateTitle').value = '';
+        document.getElementById('templateText').value = '';
+        document.getElementById('templateActionTitle').innerText = 'Ajouter un nouveau modèle';
+        document.getElementById('saveTemplateButton').innerText = 'Ajouter';
+        document.getElementById('deleteTemplateButton').style.display = 'none';
+
+        // Réinitialiser l'index sélectionné
+        selectedTemplateIndex = null;
+    }
+
+    function deleteSelectedTemplate() {
+        if (selectedTemplateIndex !== null && confirm('Êtes-vous sûr de vouloir supprimer ce modèle ?')) {
+            const templates = JSON.parse(localStorage.getItem('emailTemplates') || '[]');
+            templates.splice(selectedTemplateIndex, 1);
+            localStorage.setItem('emailTemplates', JSON.stringify(templates));
+            loadEmailTemplatesDropdown(); // Recharger la liste déroulante
+
+            clearTemplateFields(); // Fonction pour vider les champs
+        }
+    }
+    let selectedTemplateIndex = null; // Index du modèle sélectionné
+
     const styleMenu = document.createElement('style');
     styleMenu.type = 'text/css';
     styleMenu.innerHTML = `
-#configPopup, #colorPickerPopup {
+#configPopup, #colorPickerPopup, #emailConfigPopup {
   position: fixed;
   top: 50%;
   left: 50%;
@@ -846,6 +1413,7 @@ body {
 }
 
 #configPopup .button-container,
+#emailConfigPopup .button-container,
 #configPopup .checkbox-container {
   display: flex;
   flex-wrap: wrap;
@@ -853,12 +1421,14 @@ body {
 }
 
 #configPopup .button-container button,
+#emailConfigPopup .button-container,
 #configPopup .checkbox-container label {
   margin-bottom: 10px;
   flex-basis: 48%; /* Ajusté pour uniformiser l'apparence des boutons et des labels */
 }
 
-#configPopup button {
+#configPopup button,
+#emailConfigPopup button {
   padding: 5px 10px;
   background-color: #f3f3f3;
   border: 1px solid #ddd;
@@ -867,22 +1437,24 @@ body {
   text-align: center;
 }
 
-#configPopup button:not(.full-width), #colorPickerPopup button:not(.full-width) {
+#configPopup button:not(.full-width), #colorPickerPopup button:not(.full-width), #emailConfigPopup button:not(.full-width) {
   margin-right: 1%;
   margin-left: 1%;
 }
 
-#configPopup button.full-width, #colorPickerPopup button.full-width {
+#configPopup button.full-width, #colorPickerPopup button.full-width, #emailConfigPopup button.full-width {
   flex-basis: 48%;
   margin-right: 1%;
   margin-left: 1%;
 }
 
-#configPopup button:hover {
+#configPopup button:hover,
+#emailConfigPopup button:hover {
   background-color: #e8e8e8;
 }
 
-#configPopup button:active {
+#configPopup button:active,
+#emailConfigPopup button:active {
   background-color: #ddd;
 }
 #configPopup label.disabled {
@@ -892,7 +1464,7 @@ body {
 #configPopup label.disabled input[type="checkbox"] {
   cursor: not-allowed;
 }
-#saveConfig, #closeConfig, #saveColor, #closeColor {
+#saveConfig, #closeConfig, #saveColor, #closeColor, #saveTemplateButton, #closeEmailConfig, #deleteTemplateButton {
   padding: 8px 15px !important; /* Plus de padding pour un meilleur visuel */
   margin-top !important: 5px;
   border-radius: 5px !important; /* Bordures légèrement arrondies */
@@ -903,30 +1475,41 @@ body {
   transition: background-color 0.3s ease !important; /* Transition pour l'effet au survol */
 }
 
-#saveConfig, #saveColor {
+#saveConfig, #saveColor, #saveTemplateButton {
   background-color: #4CAF50 !important; /* Vert pour le bouton "Enregistrer" */
 }
 
-#closeConfig, #closeColor {
+#closeConfig, #closeColor, #closeEmailConfig, #deleteTemplateButton {
   background-color: #f44336 !important; /* Rouge pour le bouton "Fermer" */
 }
 
-#saveConfig:hover, #saveColor:hover {
+#saveConfig:hover, #saveColor:hover, #saveTemplateButton:hover {
   background-color: #45a049 !important; /* Assombrit le vert au survol */
 }
 
-#closeConfig:hover, #closeColor:hover {
+#closeConfig:hover, #closeColor:hover, #closeEmailConfig:hover, #deleteTemplateButton:hover {
   background-color: #e53935 !important; /* Assombrit le rouge au survol */
 }
-#saveColor, #closeColor {
+#saveColor, #closeColor, #closeEmailConfig, #saveTemplateButton, #deleteTemplateButton {
   margin-top: 10px; /* Ajoute un espace de 10px au-dessus du second bouton */
   width: 100%; /* Utilise width: 100% pour assurer que le bouton prend toute la largeur */
 }
+
+#existingTemplates {
+    border: 1px solid #ccc;
+    padding: 4px;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    background-color: white;
+    width: auto; /* ou une largeur spécifique selon votre design */
+}
+/* Quand un bouton est seul sur une ligne */
+/*
 #reviewColor {
   flex-basis: 100% !important; /* Prend la pleine largeur pour forcer à aller sur une nouvelle ligne */
   margin-right: 1% !important; /* Annuler la marge droite si elle est définie ailleurs */
   margin-left: 1% !important; /* Annuler la marge droite si elle est définie ailleurs */
-}
+}*/
 `;
     document.head.appendChild(styleMenu);
 
@@ -989,6 +1572,7 @@ body {
       ${createCheckbox('headerEnabled', 'Cacher totalement l\'entête de la page', 'Cache le haut de la page Amazon, celle avec la zone de recherche et les menus')}
       ${createCheckbox('mobileEnabled', 'Utiliser l\'affichage mobile', 'Optimise l\affichage sur mobile, pour éviter de mettre la "Version PC". Il est conseillé de cacher également l\'entête avec cette option.')}
       ${createCheckbox('pageEnabled', 'Affichage des pages en partie haute', 'En plus des pages de navigation en partie basse, ajoute également la navigation des pages en haut')}
+      ${createCheckbox('emailEnabled', 'Génération automatique des emails', 'Permet de générer automatiquement des mails à destination du support vine pour faire retirer un produit de votre liste d\'avis. Attention, on ne peut générer un mail que si le produit a été vu au moins une fois dans la liste de l\'onglet "Commandes"')}
       ${createCheckbox('profilEnabled', 'Mise en avant des avis avec des votes utiles sur les profils Amazon','Surligne de la couleur définie les avis ayant un vote utile ou plus. Il est également mis en début de page. Le surlignage ne fonctionne pas si l\'avis possède des photos')}
       ${createCheckbox('footerEnabled', 'Supprimer le footer sur les profils Amazon (à décocher si les avis ne se chargent pas)', 'Supprime le bas de page sur les pages de profil Amazon, cela permet de charger plus facilement les avis sans descendre tout en bas de la page. Cela ne fonctionne que sur PC, donc à désactiver si vous avez le moindre problème sur cette page')}
        </div>
@@ -1001,6 +1585,7 @@ body {
         });
 
         // Ajoute des écouteurs pour les nouveaux boutons
+        document.getElementById('emailPopup').addEventListener('click', createEmailPopup);
         document.getElementById('reviewColor').addEventListener('click', setHighlightColor);
         document.getElementById('exportCSV').addEventListener('click', exportReviewsToCSV);
 
@@ -1042,16 +1627,6 @@ body {
         document.getElementById('saveConfig').addEventListener('click', saveConfig);
         document.getElementById('closeConfig').addEventListener('click', () => popup.remove());
     }
-
-    /* function createCheckbox(name, label, disabled = false) {
-        // Récupère la valeur depuis localStorage; 'false' est utilisé comme valeur par défaut
-        const isChecked = localStorage.getItem(name) === 'true' ? 'checked' : '';
-        const isDisabled = disabled ? 'disabled' : '';
-
-        // Construit et retourne le HTML de la checkbox avec les attributs ajustés
-        // Note: assure-toi que la valeur 'true' ou 'false' est bien stockée comme chaîne dans localStorage
-        return `<label class="${isDisabled ? 'disabled' : ''}"><input type="checkbox" id="${name}" name="${name}" ${isChecked} ${isDisabled}> ${label}</label>`;
-    }*/
 
     function createCheckbox(name, label, explanation = null, disabled = false) {
         const isChecked = localStorage.getItem(name) === 'true' ? 'checked' : '';
@@ -1099,7 +1674,8 @@ body {
     function addActionButtons() {
         return `
 <div class="button-container action-buttons">
-  <button id="reviewColor">Définir la couleur de surbrillance des avis sur les profils Amazon</button><br>
+  <button id="emailPopup">Configurer les emails</button><br>
+  <button id="reviewColor">Couleur de surbrillance des avis</button><br>
   <button id="exportCSV">Exporter les avis en CSV</button>
   <button id="importCSV">Importer les avis en CSV</button>
   <button id="purgeTemplate">Supprimer le modèle d'avis</button>
@@ -1114,6 +1690,7 @@ body {
 
     // Ajouter la commande de menu "Paramètres"
     GM_registerMenuCommand("Paramètres", createConfigPopup, "p");
+    GM_registerMenuCommand("Gestion des emails", createEmailPopup, "e");
     //End
 
     let buttonsAdded = false; // Suivre si les boutons ont été ajoutés
@@ -1162,29 +1739,9 @@ body {
 
     function mobileDesign() {
         var mobileCss = document.createElement('style');
-        // Sélectionne tous les liens qui ont des IDs correspondant au pattern "a-autoid-*-announce" pour modifier le texte
-        var links = document.querySelectorAll('.vvp-reviews-table--action-btn .a-button-text');
-
-        // Boucle à travers chaque lien pour changer le texte
-        links.forEach(function(link) {
-            if (link.textContent.trim() === "Donner un avis sur l'article") {
-                link.textContent = "Donner un avis";
-            } else if (link.textContent.trim() === "Modifier le commentaire") {
-                link.textContent = "Modifier l'avis";
-            }
-        });
-
-        links = document.querySelectorAll('.vvp-orders-table--action-btn .a-button-text');
-
-        // Boucle à travers chaque lien pour changer le texte
-        links.forEach(function(link) {
-            if (link.textContent.trim() === "Détails de la commande") {
-                link.textContent = "Détails";
-            }
-        });
 
         mobileCss.textContent = `
-#configPopup, #keyConfigPopup, #favConfigPopup {
+#configPopup, #emailConfigPopup {
   width: 350px !important;
   height: 600px;
 }
@@ -1203,7 +1760,7 @@ body {
 }
 
 @media (max-width: 600px) {
-  #colorPickerPopup, #keyConfigPopup, #favConfigPopup {
+  #colorPickerPopup, #emailConfigPopup {
     width: 90%; /* Prendre 90% de la largeur de l'écran */
     margin: 10px auto; /* Ajout d'un peu de marge autour des popups */
   }
