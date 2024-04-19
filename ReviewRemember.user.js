@@ -713,7 +713,6 @@ body {
                 // Construit la nouvelle URL avec le numéro de page et la valeur de 'pn' existante
                 newUrl = `https://www.amazon.fr/vine/orders?page=${pageNumber}`;
             }
-            console.log(newUrl);
             window.location.href = newUrl;
         } else {
             alert("Veuillez saisir un numéro de page valide.");
