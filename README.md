@@ -1,6 +1,8 @@
-__**ReviewRemember**__
+**__ReviewRemember__**
 
-Script TamperMonkey pour la communauté Amazon Vine France : https://discord.gg/amazonvinefr
+Script TamperMonkey pour la communauté Amazon Vine France
+
+Rejoignez nous sur discord : https://discord.gg/amazonvinefr
 
 Fonctionnalités :
 
@@ -11,4 +13,4 @@ Fonctionnalités :
 - Affichage mobile
 - Etc...
 
-Autre plugin pour la gestion des nouveaux produits : [ReviewRemember](https://github.com/TeiTong/pickme)
+Autre plugin pour la gestion des nouveaux produits : [PickMe](https://github.com/TeiTong/pickme)
