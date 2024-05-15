@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ReviewRemember
 // @namespace    http://tampermonkey.net/
-// @version      1.5
+// @version      1.5.1
 // @description  Outils pour les avis Amazon
 // @author       Ashemka et MegaMan
 // @match        https://www.amazon.fr/review/create-review*
@@ -713,6 +713,7 @@ body {
                 // Construit la nouvelle URL avec le numéro de page et la valeur de 'pn' existante
                 newUrl = `https://www.amazon.fr/vine/orders?page=${pageNumber}`;
             }
+            console.log(newUrl);
             window.location.href = newUrl;
         } else {
             alert("Veuillez saisir un numéro de page valide.");
@@ -835,9 +836,37 @@ body {
                     select.innerHTML = '<option>Numéro de commande absent</option>';
                     checkbox.disabled = true; // Désactive la checkbox
                 } else {
+                    const orderData = JSON.parse(orderDataExists);
                     // Active ou désactive la checkbox en fonction de son état actuel
                     checkbox.disabled = false; // Assure-toi que la checkbox est activée
                     select.disabled = !checkbox.checked; // Active ou désactive la liste déroulante basée sur l'état de la checkbox
+                    var originalButton = row.querySelector('.vvp-reviews-table--actions-col');
+                    if (originalButton) {
+                        // Créez un nouveau bouton
+                        var newButton = document.createElement('span');
+                        newButton.className = 'a-button a-button-primary vvp-reviews-table--action-btn';
+                        newButton.style.display = 'block'; // Assurez le retour à la ligne
+                        newButton.style.marginTop = '5px'; // Espacement en haut
+
+                        // Créez l'intérieur du bouton
+                        var buttonInner = document.createElement('span');
+                        buttonInner.className = 'a-button-inner';
+                        newButton.appendChild(buttonInner);
+
+                        // Créez le lien et ajustez l'URL
+                        var link = document.createElement('a');
+                        link.className = 'a-button-text';
+                        link.id = 'order-details-link';
+                        link.textContent = 'Voir la commande';
+                        // Assurez-vous que l'orderId est correctement défini ici
+                        link.href = "https://www.amazon.fr/gp/your-account/order-details?ie=UTF8&orderID=" + orderData.orderId;
+                        link.target = '_blank';
+
+                        buttonInner.appendChild(link);
+
+                        // Insérez le nouveau bouton après le bouton existant
+                        originalButton.appendChild(newButton);
+                    }
                 }
 
                 // Écouter les changements de checkbox
@@ -1689,7 +1718,6 @@ body {
 
     // Ajouter la commande de menu "Paramètres"
     GM_registerMenuCommand("Paramètres", createConfigPopup, "p");
-    GM_registerMenuCommand("Gestion des emails", createEmailPopup, "e");
     //End
 
     let buttonsAdded = false; // Suivre si les boutons ont été ajoutés
