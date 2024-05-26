@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ReviewRemember
 // @namespace    http://tampermonkey.net/
-// @version      1.5.1
+// @version      1.5.2
 // @description  Outils pour les avis Amazon
 // @author       Ashemka et MegaMan
 // @match        https://www.amazon.fr/review/create-review*
@@ -63,8 +63,10 @@
             // Remplacer l'URL de l'image
             img.src = 'https://i.ibb.co/Ph6Bw85/RR2.png';
             if (localStorage.getItem('mobileEnabled') == 'true') {
-                img.style.height = '35px'; // Définis une nouvelle hauteur pour l'image
-                img.style.width = 'auto'; // Assure que la largeur s'ajuste pour conserver les proportions
+                img.style.maxHeight = '50px';
+                img.style.maxWidth = '100%';
+                img.style.height = 'auto';
+                img.style.width = 'auto';
             }
             // Modifier le comportement du lien pour empêcher le chargement de la page
             link.onclick = function(event) {
@@ -1806,6 +1808,10 @@ body {
 /* Taille des fonds gris sur le compte */
 #vvp-current-status-box {
     height: 200px !important;
+}
+
+.vvp-body {
+  padding: 0px !important;
 }
 
 #vvp-vine-activity-metrics-box {
