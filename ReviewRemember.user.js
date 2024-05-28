@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ReviewRemember
 // @namespace    http://tampermonkey.net/
-// @version      1.5.2
+// @version      1.5.3
 // @description  Outils pour les avis Amazon
 // @author       Ashemka et MegaMan
 // @match        https://www.amazon.fr/review/create-review*
@@ -485,7 +485,7 @@
     styleReview.textContent = `
         .pending-review-blue {
     font-weight: bold;
-    color: #0000FF !important;
+    color: #007FFF !important;
 }
         .pending-review-green {
     font-weight: bold;
@@ -958,7 +958,7 @@ body {
 
         // Conteneur et style pour l'email
         const emailSpan = document.createElement('div');
-        emailSpan.innerHTML = 'Support : <a href="javascript:void(0)" style="text-decoration: underline; color: blue;">vine-support@amazon.fr</a>';
+        emailSpan.innerHTML = 'Support : <a href="javascript:void(0)" style="text-decoration: underline; color: #007FFF;">vine-support@amazon.fr</a>';
         emailSpan.style.marginRight = '5px';
         // Gestionnaire d'événements pour copier l'email
         const emailLink = emailSpan.querySelector('a');
