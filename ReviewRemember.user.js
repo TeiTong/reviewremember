@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ReviewRemember
 // @namespace    http://tampermonkey.net/
-// @version      1.5.3
+// @version      1.5.4
 // @description  Outils pour les avis Amazon
 // @author       Ashemka et MegaMan
 // @match        https://www.amazon.fr/review/create-review*
@@ -25,7 +25,13 @@
     var version = GM_info.script.version;
 
     //Correction du mot sur la page
-    document.body.innerHTML = document.body.innerHTML.replace(/Vérifiées/g, 'Vérifiés');
+    var element = document.querySelector('#vvp-reviews-button--completed a.a-button-text');
+
+    // Vérifie si l'élément existe et si son texte est "Vérifiées"
+    if (element && element.textContent.trim() === "Vérifiées") {
+        // Modifie le texte en "Vérifiés"
+        element.textContent = "Vérifiés";
+    }
 
     // Sélectionne tous les liens qui ont des IDs correspondant au pattern "a-autoid-*-announce" pour modifier le texte
     var links = document.querySelectorAll('.vvp-reviews-table--action-btn .a-button-text');
@@ -743,12 +749,24 @@ body {
         if (window.location.href.includes('orders')) {
             // Extraction des données de chaque ligne de produit
             document.querySelectorAll('.vvp-orders-table--row').forEach(row => {
-                const productUrl = row.querySelector('.vvp-orders-table--text-col a').href;
-                const asin = extractASIN(productUrl);
+                let productUrl = row.querySelector('.vvp-orders-table--text-col a');
+                let asin;
+                if (productUrl) {
+                    productUrl = productUrl.href;
+                    asin = extractASIN(productUrl);
+                } else {
+                    const asinElement = row.querySelector('.vvp-orders-table--text-col');
+                    asin = asinElement ? asinElement.childNodes[0].nodeValue.trim() : null;
+                }
                 const key_asin = "order_" + asin
                 if (!localStorage.getItem(key_asin)) {
                     const imageUrl = row.querySelector('.vvp-orders-table--image-col img').src;
-                    const productName = row.querySelector('.vvp-orders-table--text-col a').textContent.trim();
+                    let productName = row.querySelector('.vvp-orders-table--text-col a .a-truncate-full')
+                    if (productName) {
+                        productName = productName.textContent.trim();
+                    } else {
+                        productName = "Indispo";
+                    }
                     const timestampElement = row.querySelector('[data-order-timestamp]');
                     const orderDate = timestampElement ? new Date(parseInt(timestampElement.getAttribute('data-order-timestamp'))).toLocaleDateString("fr-FR") : null;
                     const etv = row.querySelector('.vvp-orders-table--text-col.vvp-text-align-right').textContent.trim();
@@ -921,7 +939,7 @@ body {
             actionsContainer.style.cssText = 'text-align: right; position: absolute; right: 0; top: 0;';
         }
 
-        // Imiter le style du bouton Amazon pour le bouton 'Générer email'
+        //Bouton 'Générer email'
         const button = document.createElement('span');
         button.className = 'a-button a-button-primary vvp-reviews-table--action-btn';
         button.style.marginRight = '10px'; // Marge à droite du bouton
