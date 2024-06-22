@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ReviewRemember
 // @namespace    http://tampermonkey.net/
-// @version      1.5.4
+// @version      1.6
 // @description  Outils pour les avis Amazon
 // @author       Ashemka et MegaMan
 // @match        https://www.amazon.fr/review/create-review*
@@ -471,6 +471,153 @@
         }
     }
 
+    //Affiche la dernière mise a jour du profil
+    function lastUpdate() {
+        if (document.URL === "https://www.amazon.fr/vine/account") {
+            // Récupérer le pourcentage et la date précédents depuis le stockage local
+            const previousPercentage = parseFloat(localStorage.getItem('vineProgressPercentage')) || null;
+            const previousDate = localStorage.getItem('vineProgressDate') || null;
+
+            //console.log("Pourcentage précédent :", previousPercentage);
+            //console.log("Date précédente :", previousDate);
+
+            const progressText = document.querySelector('#vvp-perc-reviewed-metric-display p strong');
+            const progressContainer = document.querySelector('#vvp-perc-reviewed-metric-display .animated-progress');
+            const metricsBox = document.querySelector('#vvp-vine-activity-metrics-box .a-box-inner');
+
+            // Augmenter dynamiquement la hauteur du bloc des métriques
+            metricsBox.style.paddingTop = '10px'; // Ajouter du padding en haut
+            metricsBox.style.paddingBottom = '10px'; // Ajouter du padding en bas
+
+            if (progressText) {
+                const currentPercentageText = progressText.textContent.trim();
+                const currentPercentage = parseFloat(currentPercentageText.replace('%', '').replace(',', '.'));
+
+                //console.log("Pourcentage actuel :", currentPercentage);
+
+                if (previousPercentage === null || previousPercentage !== currentPercentage) {
+                    const dateTimeNow = new Date().toLocaleString();
+                    const difference = previousPercentage !== null ? currentPercentage - previousPercentage : 0;
+                    const differenceText = previousPercentage !== null ? (difference > 0 ? `+${difference.toFixed(1)} %` : `${difference.toFixed(1)} %`) : '';
+                    const differenceColor = difference > 0 ? 'green' : 'red';
+
+                    //console.log("Différence :", differenceText);
+
+                    // Stocker le nouveau pourcentage et la date dans le stockage local
+                    localStorage.setItem('vineProgressPercentage', currentPercentage);
+                    localStorage.setItem('vineProgressDate', dateTimeNow);
+
+                    //console.log("Nouveau pourcentage stocké :", currentPercentage);
+                    //console.log("Nouvelle date stockée :", dateTimeNow);
+
+                    // Mettre à jour le texte de progression avec la date et l'heure de la dernière modification
+                    updateDateTimeElement(progressContainer, dateTimeNow, differenceText, differenceColor);
+                } else if (previousDate) {
+                    // Si aucune modification détectée, afficher la date et l'heure de la dernière modification
+                    updateDateTimeElement(progressContainer, previousDate);
+                }
+            }
+
+            function updateDateTimeElement(containerElement, dateTime, differenceText = '', differenceColor = '') {
+                // Supprimer l'élément de date précédent s'il existe
+                let previousDateTimeElement = document.querySelector('.last-modification');
+                if (previousDateTimeElement) {
+                    previousDateTimeElement.remove();
+                }
+
+                // Créer un nouvel élément de date
+                const dateTimeElement = document.createElement('span');
+                dateTimeElement.className = 'last-modification';
+                //dateTimeElement.style.marginLeft = '10px';
+                dateTimeElement.innerHTML = `Dernière modification constatée le <strong>${dateTime}</strong>`;
+
+                if (differenceText) {
+                    const differenceElement = document.createElement('span');
+                    differenceElement.style.color = differenceColor;
+                    differenceElement.textContent = ` (${differenceText})`;
+                    dateTimeElement.appendChild(differenceElement);
+                }
+
+                // Insérer le nouvel élément après le conteneur de progression
+                containerElement.parentNode.insertBefore(dateTimeElement, containerElement.nextSibling);
+            }
+        }
+    }
+
+    function targetPercentage() {
+        if (document.URL === "https://www.amazon.fr/vine/account") {
+            const { percentage, evaluatedArticles } = extractData();
+            const storedValue = localStorage.getItem('gestavisTargetPercentage');
+            const missingArticles = calculateMissingReviews(percentage, evaluatedArticles, storedValue);
+            const doFireWorks = localStorage.getItem('doFireWorks');
+            if ((Number(storedValue) <= Number(percentage)) && doFireWorks === 'true') {
+                fireWorks();
+                localStorage.setItem('doFireWorks', 'false');
+            } else if (Number(storedValue) > Number(percentage)) {
+                localStorage.setItem('doFireWorks', 'true');
+            }
+            insertResult(missingArticles);
+            centerContentVertically();
+            removeGreyText();
+
+            // Fonction pour extraire les données de la page
+            function extractData() {
+                const percentageText = document.querySelector('#vvp-perc-reviewed-metric-display p strong').innerText;
+                const articlesText = document.querySelector('#vvp-num-reviewed-metric-display p strong').innerText;
+
+                const percentage = parseFloat(percentageText.replace(',', '.').replace('%', '').trim());
+                const evaluatedArticles = parseInt(articlesText);
+
+                return { percentage, evaluatedArticles };
+            }
+
+            // Fonction pour calculer le nombre d'avis manquants
+            function calculateMissingReviews(percentage, evaluatedArticles, targetPercentage) {
+                const totalArticles = evaluatedArticles / (percentage / targetPercentage);
+                const missingArticles = Math.ceil(totalArticles - evaluatedArticles);
+                return missingArticles;
+            }
+
+            // Fonction pour insérer le résultat dans la page
+            function insertResult(missingArticles) {
+                const targetDiv = document.querySelector('#vvp-num-reviewed-metric-display');
+                const progressBar = targetDiv.querySelector('.animated-progress.progress-green');
+                const resultSpan = document.createElement('span');
+                resultSpan.className = 'review-todo';
+                let missingArticlesNumber = parseInt(missingArticles, 10);
+                if (!isNaN(missingArticlesNumber) && missingArticlesNumber > 0) {
+                    resultSpan.innerHTML = `Nombre d'avis à soumettre : <strong>${missingArticles}</strong> (avant d'atteindre ${storedValue} %)`;
+                } else {
+                    resultSpan.innerHTML = `Nombre d'avis à soumettre : <strong>Objectif atteint</strong> (${storedValue} % ou plus)`;
+                }
+                resultSpan.style.display = 'block'; // Pour s'assurer qu'il apparaisse sur une nouvelle ligne
+                resultSpan.style.marginTop = '10px'; // Ajouter une marge
+
+                const hrElement = document.createElement('hr');
+
+                progressBar.insertAdjacentElement('afterend', resultSpan);
+                resultSpan.insertAdjacentElement('afterend', hrElement);
+            }
+
+            // Fonction pour centrer verticalement le contenu
+            function centerContentVertically() {
+                const metricsBox = document.querySelector('#vvp-vine-activity-metrics-box .a-box-inner');
+                metricsBox.style.display = 'flex';
+                metricsBox.style.flexDirection = 'column';
+                metricsBox.style.justifyContent = 'center';
+                metricsBox.style.height = '100%';
+            }
+
+            // Fonction pour supprimer l'élément grey-text
+            function removeGreyText() {
+                const greyTextElement = document.querySelector('p.grey-text');
+                if (greyTextElement) {
+                    greyTextElement.remove();
+                }
+            }
+        }
+    }
+
     // Fonction pour formater une date en format 'DD/MM/YYYY'
     function formatDate(date) {
         var day = date.getDate().toString().padStart(2, '0');
@@ -790,6 +937,83 @@ body {
         }
     }
 
+    function fireWorks() {
+        // Ajout de styles pour le feu d'artifice
+        let style = document.createElement('style');
+        style.innerHTML = `
+        .firework {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: red;
+            border-radius: 50%;
+            pointer-events: none;
+            animation: explode 1s ease-out forwards;
+        }
+        @keyframes explode {
+            0% { transform: translate(0, 0) scale(1); opacity: 1; }
+            100% { transform: translate(var(--x, 0), var(--y, 0)) scale(0.5); opacity: 0; }
+        }
+    `;
+        document.head.appendChild(style);
+
+        // Fonction pour créer une particule de feu d'artifice
+        function createParticle(x, y, color, angle, speed) {
+            let particle = document.createElement('div');
+            particle.className = 'firework';
+            particle.style.background = color;
+            particle.style.left = `${x}px`;
+            particle.style.top = `${y}px`;
+
+            // Calcul de la trajectoire
+            let radians = angle * (Math.PI / 180);
+            let dx = Math.cos(radians) * speed;
+            let dy = Math.sin(radians) * speed;
+            particle.style.setProperty('--x', `${dx}px`);
+            particle.style.setProperty('--y', `${dy}px`);
+
+            document.body.appendChild(particle);
+
+            // Retirer la particule après l'animation
+            setTimeout(() => {
+                particle.remove();
+            }, 1000);
+        }
+
+        // Fonction pour lancer le feu d'artifice
+        function lancerFeuArtifice() {
+            let numberOfBursts = 10;
+            let particlesPerBurst = 50;
+            let burstInterval = 500; // Intervalle entre chaque explosion
+            let duration = 5000; // Durée du feu d'artifice
+            let colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff'];
+
+            let interval = setInterval(() => {
+                for (let i = 0; i < numberOfBursts; i++) {
+                    let x = Math.random() * (window.innerWidth - 50) + 25;
+                    let y = Math.random() * (window.innerHeight - 50) + 25;
+                    let color = colors[Math.floor(Math.random() * colors.length)];
+
+                    for (let j = 0; j < particlesPerBurst; j++) {
+                        let angle = Math.random() * 360;
+                        let speed = Math.random() * 100 + 50;
+                        createParticle(x, y, color, angle, speed);
+                    }
+                }
+            }, burstInterval);
+
+            setTimeout(() => {
+                clearInterval(interval);
+            }, duration);
+        }
+
+        // Ajouter la fonction au contexte global pour pouvoir l'appeler facilement
+        window.lancerFeuArtifice = lancerFeuArtifice;
+
+        // Appeler la fonction pour démarrer automatiquement les feux d'artifice
+        lancerFeuArtifice();
+    }
+
     function addMail() {
         if (!window.location.href.includes('review-type=completed')) {
             const rows = document.querySelectorAll('.vvp-reviews-table--row');
@@ -1073,8 +1297,6 @@ body {
     }
 
     //localStorage.removeItem('enableDateFunction');
-    //localStorage.removeItem('enableReviewStatusFunction');
-    //localStorage.removeItem('enableColorFunction');
     var enableDateFunction = localStorage.getItem('enableDateFunction');
     var enableReviewStatusFunction = localStorage.getItem('enableReviewStatusFunction');
     var enableColorFunction = localStorage.getItem('enableColorFunction');
@@ -1086,6 +1308,8 @@ body {
     var pageEnabled = localStorage.getItem('pageEnabled');
     var mobileEnabled = localStorage.getItem('mobileEnabled');
     var emailEnabled = localStorage.getItem('emailEnabled');
+    var lastUpdateEnabled = localStorage.getItem('lastUpdateEnabled');
+    var targetPercentageEnabled = localStorage.getItem('targetPercentageEnabled');
 
     // Initialiser à true si la clé n'existe pas dans le stockage local
     if (enableDateFunction === null) {
@@ -1143,6 +1367,18 @@ body {
         localStorage.setItem('emailEnabled', emailEnabled);
     }
 
+    if (lastUpdateEnabled === null) {
+        lastUpdateEnabled = 'true';
+        localStorage.setItem('lastUpdateEnabled', lastUpdateEnabled);
+    }
+
+    if (targetPercentageEnabled === null) {
+        targetPercentageEnabled = 'true';
+        localStorage.setItem('targetPercentageEnabled', targetPercentageEnabled);
+        localStorage.setItem('gestavisTargetPercentage', '90');
+        localStorage.setItem('doFireWorks', 'true');
+    }
+
     if (mobileEnabled === 'true') {
         pageX = "X";
         mobileDesign();
@@ -1184,6 +1420,14 @@ body {
     if (emailEnabled === 'true') {
         saveOrders();
         addMail();
+    }
+
+    if (lastUpdateEnabled === 'true') {
+        lastUpdate();
+    }
+
+    if (targetPercentageEnabled === 'true') {
+        targetPercentage();
     }
     //End
     //Ajout du menu
@@ -1561,6 +1805,20 @@ body {
 `;
     document.head.appendChild(styleMenu);
 
+    // Fonction pour afficher une boîte de dialogue pour définir le pourcentage cible
+    function promptForTargetPercentage() {
+        const storedValue = localStorage.getItem('gestavisTargetPercentage');
+        const targetPercentage = prompt('Entrez le pourcentage cible à atteindre (entre 90 et 100):', storedValue);
+        if (targetPercentage !== null) {
+            const parsedValue = parseFloat(targetPercentage);
+            if (!isNaN(parsedValue) && parsedValue >= 90 && parsedValue <= 100) {
+                localStorage.setItem('gestavisTargetPercentage', parsedValue);
+            } else {
+                alert('Pourcentage invalide. Veuillez entrer un nombre entre 90 et 100.');
+            }
+        }
+    }
+
     // Fonction pour rendre la fenêtre déplaçable
     function dragElement(elmnt) {
         var pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
@@ -1617,6 +1875,8 @@ body {
       ${createCheckbox('enableReviewStatusFunction', 'Surlignage des avis vérifiés', 'Change la couleur du "Statut du commentaire" dans vos avis "Vérifiées" en fonction de leur statut actuel (Approuvé, Non approuvé, etc...)')}
       ${createCheckbox('enableColorFunction', 'Changer la couleur de la barre de progression des avis', 'Change la couleur de la barre de progression des avis sur la page "Compte". Entre 0 et 59% -> Rouge, 60 à 89% -> Orange et supérieur à 90% -> Vert')}
       ${createCheckbox('filterEnabled', 'Cacher les avis approuvés', 'Dans l\'onglet "Vérifiées" de vos avis, si l\'avis  est Approuvé, alors il est caché')}
+      ${createCheckbox('lastUpdateEnabled', 'Afficher la date de la dernière modification du % d\'avis', 'Indique la date de la dernière modification du % des avis sur le compte')}
+      ${createCheckbox('targetPercentageEnabled', 'Afficher le nombre d\'avis nécessaires pour atteindre un % cible', 'Affiche le nombre d\'avis qu\'il va être nécessaire de faire pour atteindre le % défini')}
       ${createCheckbox('headerEnabled', 'Cacher totalement l\'entête de la page', 'Cache le haut de la page Amazon, celle avec la zone de recherche et les menus')}
       ${createCheckbox('mobileEnabled', 'Utiliser l\'affichage mobile', 'Optimise l\affichage sur mobile, pour éviter de mettre la "Version PC". Il est conseillé de cacher également l\'entête avec cette option.')}
       ${createCheckbox('pageEnabled', 'Affichage des pages en partie haute', 'En plus des pages de navigation en partie basse, ajoute également la navigation des pages en haut')}
@@ -1637,15 +1897,21 @@ body {
         document.getElementById('reviewColor').addEventListener('click', setHighlightColor);
         document.getElementById('exportCSV').addEventListener('click', exportReviewsToCSV);
 
+        document.getElementById('targetPercentageEnabled').addEventListener('click', function() {
+            if (this.checked) {
+                promptForTargetPercentage();
+            }
+        });
+
         document.getElementById('purgeTemplate').addEventListener('click', () => {
-            if (confirm("Es-tu sûr de vouloir supprimer le modèle d'avis ?")) {
+            if (confirm("Êtes-vous sûr de vouloir supprimer le modèle d'avis ?")) {
                 deleteTemplate();
                 reloadButtons();
             }
         });
 
         document.getElementById('purgeReview').addEventListener('click', () => {
-            if (confirm("Es-tu sûr de vouloir supprimer tous les avis ?")) {
+            if (confirm("Êtes-vous sûr de vouloir supprimer tous les avis ?")) {
                 deleteAllReviews();
                 reloadButtons();
             }
