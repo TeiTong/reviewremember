@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ReviewRemember
 // @namespace    http://tampermonkey.net/
-// @version      1.6
+// @version      1.7
 // @description  Outils pour les avis Amazon
 // @author       Ashemka et MegaMan
 // @match        https://www.amazon.fr/review/create-review*
@@ -355,26 +355,27 @@
     }
 
     // Fonction pour sauvegarder l'avis
-    function saveReview() {
+    function saveReview(autoSave = false) {
         const title = document.getElementById('scarface-review-title-label').value;
         const review = document.querySelector('textarea#scarface-review-text-card-title').value;
         const asin = getASIN();
         localStorage.setItem(`review_${asin}`, JSON.stringify({title, review}));
+        if (!autoSave) {
+            // Récupère le bouton de sauvegarde
+            const saveButton = this; // 'this' fait référence au bouton qui a déclenché l'événement
+            const originalText = saveButton.textContent;
+            saveButton.textContent = 'Enregistré !';
+            //saveButton.disabled = true; // Désactive le bouton pour éviter les doubles clics
+            //saveButton.style.backgroundColor = '#FCD200'; // Gris
 
-        // Récupère le bouton de sauvegarde
-        const saveButton = this; // 'this' fait référence au bouton qui a déclenché l'événement
-        const originalText = saveButton.textContent;
-        saveButton.textContent = 'Enregistré !';
-        //saveButton.disabled = true; // Désactive le bouton pour éviter les doubles clics
-        //saveButton.style.backgroundColor = '#FCD200'; // Gris
-
-        // Réinitialise le bouton après 3 secondes
-        setTimeout(() => {
-            saveButton.textContent = originalText;
-            saveButton.disabled = false; // Réactive le bouton
-            saveButton.style.backgroundColor = ''; // Réinitialise le style (ou mettez ici la couleur d'origine si nécessaire)
-            reloadButtons(); // Optionnel : actualise les boutons si nécessaire
-        }, 2000);
+            // Réinitialise le bouton après 3 secondes
+            setTimeout(() => {
+                saveButton.textContent = originalText;
+                saveButton.disabled = false; // Réactive le bouton
+                saveButton.style.backgroundColor = ''; // Réinitialise le style (ou mettez ici la couleur d'origine si nécessaire)
+                reloadButtons(); // Optionnel : actualise les boutons si nécessaire
+            }, 2000);
+        }
     }
 
     // Fonction pour recharger les boutons
@@ -1296,6 +1297,20 @@ body {
         }
     }
 
+    function autoSaveReview() {
+        window.addEventListener('load', function() {
+            //Sélectionner le bouton en utilisant le sélecteur de classe et data-hook
+            var button = document.querySelector('span[data-hook="ryp-review-submit-button"] button.a-button-text');
+
+            //Vérifier si le bouton existe avant d'ajouter l'écouteur d'événements
+            if (button) {
+                button.addEventListener('click', function() {
+                    saveReview(true);
+                });
+            }
+        });
+    }
+
     //localStorage.removeItem('enableDateFunction');
     var enableDateFunction = localStorage.getItem('enableDateFunction');
     var enableReviewStatusFunction = localStorage.getItem('enableReviewStatusFunction');
@@ -1310,6 +1325,7 @@ body {
     var emailEnabled = localStorage.getItem('emailEnabled');
     var lastUpdateEnabled = localStorage.getItem('lastUpdateEnabled');
     var targetPercentageEnabled = localStorage.getItem('targetPercentageEnabled');
+    var autoSaveEnabled = localStorage.getItem('autoSaveEnabled');
 
     // Initialiser à true si la clé n'existe pas dans le stockage local
     if (enableDateFunction === null) {
@@ -1379,6 +1395,11 @@ body {
         localStorage.setItem('doFireWorks', 'true');
     }
 
+    if (autoSaveEnabled === null) {
+        autoSaveEnabled = 'true';
+        localStorage.setItem('autoSaveEnabled', autoSaveEnabled);
+    }
+
     if (mobileEnabled === 'true') {
         pageX = "X";
         mobileDesign();
@@ -1428,6 +1449,10 @@ body {
 
     if (targetPercentageEnabled === 'true') {
         targetPercentage();
+    }
+
+    if (autoSaveEnabled === 'true') {
+        autoSaveReview();
     }
     //End
     //Ajout du menu
@@ -1871,6 +1896,7 @@ body {
         popup.innerHTML = `
     <h2 id="configPopupHeader">Paramètres ReviewRemember v${version}<span id="closePopup" style="float: right; cursor: pointer;">&times;</span></h2>
     <div class="checkbox-container">
+      ${createCheckbox('autoSaveEnabled', 'Sauvegarde automatique des avis', 'Les avis sont sauvegardés dès que vous cliquez sur "Envoyer" sans avoir besoin de l\'enregistrer avant')}
       ${createCheckbox('enableDateFunction', 'Surlignage du statut des avis', 'Change la couleur du "Statut du commentaire" dans vos avis "En attente de vérification" en fonction de leur date d\'ancienneté. Entre 0 et 6 jours -> Bleu, 7 à 13 jours -> Vert, 14 à 29 jours -> Orange, plus de 30 jours -> Rouge')}
       ${createCheckbox('enableReviewStatusFunction', 'Surlignage des avis vérifiés', 'Change la couleur du "Statut du commentaire" dans vos avis "Vérifiées" en fonction de leur statut actuel (Approuvé, Non approuvé, etc...)')}
       ${createCheckbox('enableColorFunction', 'Changer la couleur de la barre de progression des avis', 'Change la couleur de la barre de progression des avis sur la page "Compte". Entre 0 et 59% -> Rouge, 60 à 89% -> Orange et supérieur à 90% -> Vert')}
@@ -2026,6 +2052,8 @@ body {
     }
 
     tryToAddButtons();
+
+
     // Suppression du footer uniquement sur les PC (1000 étant la valeur pour "Version pour ordinateur" sur Kiwi à priori
     if (window.innerWidth > 768 && window.innerWidth != 1000 && window.innerWidth != 1100 && window.location.href.startsWith("https://www.amazon.fr/gp/profile/") && footerEnabled === 'true') {
         // Votre code de suppression du footer ici
