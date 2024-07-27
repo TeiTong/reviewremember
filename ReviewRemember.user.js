@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ReviewRemember
 // @namespace    http://tampermonkey.net/
-// @version      1.7
+// @version      1.7.1
 // @description  Outils pour les avis Amazon
 // @author       Ashemka et MegaMan
 // @match        https://www.amazon.fr/review/create-review*
@@ -12,7 +12,7 @@
 // @match        https://www.amazon.fr/vine/orders*
 // @match        https://www.amazon.fr/gp/profile/*
 // @match        https://www.amazon.fr/vine/resources
-// @icon         https://i.ibb.co/yhNnKdS/RR-ICO-2-1.png
+// @icon         https://pickme.alwaysdata.net/img/RR-ICO-2.png
 // @updateURL    https://raw.githubusercontent.com/teitong/reviewremember/main/ReviewRemember.user.js
 // @downloadURL  https://raw.githubusercontent.com/teitong/reviewremember/main/ReviewRemember.user.js
 // @grant        GM_registerMenuCommand
@@ -67,7 +67,7 @@
             // Sélectionner directement l'image à l'intérieur du lien
             var img = link.querySelector('img');
             // Remplacer l'URL de l'image
-            img.src = 'https://i.ibb.co/Ph6Bw85/RR2.png';
+            img.src = 'https://pickme.alwaysdata.net/img/RR.png';
             if (localStorage.getItem('mobileEnabled') == 'true') {
                 img.style.maxHeight = '50px';
                 img.style.maxWidth = '100%';
@@ -1182,7 +1182,7 @@ body {
             const emailText = generateEmail();
             navigator.clipboard.writeText(emailText).then(() => {
                 if (emailText != null) {
-                    alert(emailText);
+                    alert("Le texte suivant vient d'être copié dans le presse-papiers afin que tu puisses l'envoyer par mail au support :\n\n" + emailText);
                     window.location.reload();
                 }
             }).catch(err => {
@@ -1895,6 +1895,19 @@ body {
         popup.id = "configPopup";
         popup.innerHTML = `
     <h2 id="configPopupHeader">Paramètres ReviewRemember v${version}<span id="closePopup" style="float: right; cursor: pointer;">&times;</span></h2>
+    <div style="text-align: center; margin-bottom: 20px;">
+        <p id="links-container" style="text-align: center;">
+            <a href="https://pickme.alwaysdata.net/wiki/doku.php?id=plugins:reviewremember" target="_blank">
+                <img src="https://pickme.alwaysdata.net/img/wiki.png" alt="Wiki ReviewRemember" style="vertical-align: middle; margin-right: 5px; width: 25px; height: 25px;">
+                Wiki ReviewRemember
+            </a>
+            ${mobileEnabled == 'true' ? '<br>' : '<span id="separator"> | </span>'}
+            <a href="https://pickme.alwaysdata.net/wiki/doku.php?id=vine:comment_nous_aider_gratuitement" target="_blank">
+                <img src="https://pickme.alwaysdata.net/img/soutiens.png" alt="Soutenir gratuitement" style="vertical-align: middle; margin-right: 5px; width: 25px; height: 25px;">
+                Soutenir gratuitement
+            </a>
+        </p>
+    </div>
     <div class="checkbox-container">
       ${createCheckbox('autoSaveEnabled', 'Sauvegarde automatique des avis', 'Les avis sont sauvegardés dès que vous cliquez sur "Envoyer" sans avoir besoin de l\'enregistrer avant')}
       ${createCheckbox('enableDateFunction', 'Surlignage du statut des avis', 'Change la couleur du "Statut du commentaire" dans vos avis "En attente de vérification" en fonction de leur date d\'ancienneté. Entre 0 et 6 jours -> Bleu, 7 à 13 jours -> Vert, 14 à 29 jours -> Orange, plus de 30 jours -> Rouge')}
