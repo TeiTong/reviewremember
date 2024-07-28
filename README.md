@@ -13,4 +13,6 @@ Fonctionnalités :
 - Affichage mobile
 - Etc...
 
+Wiki : https://pickme.alwaysdata.net/wiki/doku.php?id=plugins:reviewremember
+
 Autre plugin pour la gestion des nouveaux produits : [PickMe](https://github.com/TeiTong/pickme)
