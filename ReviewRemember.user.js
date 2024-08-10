@@ -1405,9 +1405,11 @@ body {
         mobileDesign();
     }
     replaceImageUrl();
+
+    //Ajout pour avoir le bon logo/menu sur iPhone principalement
     setTimeout(function() {
         replaceImageUrl();
-    }, 500);
+    }, 200);
 
     if (enableDateFunction === 'true') {
         highlightDates();
