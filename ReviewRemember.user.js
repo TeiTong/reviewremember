@@ -2177,6 +2177,7 @@ body {
             const textarea = document.getElementById('scarface-review-text-card-title');
             if (textarea) {
                 textarea.style.height = '300px'; //Définit la hauteur à 300px
+                textarea.style.resize = 'both';
             }
             //Permettre l'ajout de plusieurs médias d'un coup
             var inputElement = document.getElementById('ryp__media-upload-banner-input');
