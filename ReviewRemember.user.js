@@ -1,7 +1,7 @@
 //==UserScript==
 // @name         ReviewRemember
 // @namespace    http://tampermonkey.net/
-// @version      1.8
+// @version      1.8.1
 // @description  Outils pour les avis Amazon
 // @author       MegaMan (et Ashemka sur les premières versions)
 // @match        https://www.amazon.fr/review/create-review*
@@ -179,6 +179,7 @@
     }
 
     //Trie des avis sur profil
+    //Marquer une carte comme traitée
     function marquerCarteCommeTraitee(carte) {
         carte.dataset.traitee = 'true';
     }
@@ -186,27 +187,26 @@
     //Fonction pour classer les cartes traitées par ordre décroissant de leur valeur
     function classerCartesTraitees() {
         //Sélectionne uniquement les cartes marquées comme traitées
-        const cartesTraitees = Array.from(document.querySelectorAll('.your-content-card-wrapper.your-content-card-desktop[data-traitee="true"]'));
+        const cartesTraitees = Array.from(document.querySelectorAll('.review-card-container[data-traitee="true"]'));
 
         //Trie les cartes en fonction de leur valeur numérique de manière croissante
         cartesTraitees.sort((a, b) => extraireValeur(a) - extraireValeur(b));
 
         //Réorganise les cartes dans leur conteneur parent selon le nouvel ordre croissant
-        cartesTraitees.forEach(carte => {
-            document.querySelector('.your-content-tab-container').prepend(carte);
-        });
+        const conteneur = document.querySelector('#reviewTabContentContainer');
+        cartesTraitees.forEach(carte => conteneur.prepend(carte));
     }
 
-    //Extrait la valeur numérique d'une carte, retourne 0 si non applicable
+    //Extraire la valeur numérique d'un "like", retourne 0 si non applicable
     function extraireValeur(carte) {
-        const valeurElement = carte.querySelector('.a-size-base.a-color-primary.a-text-bold');
+        const valeurElement = carte.querySelector('.review-reaction-count');
         return valeurElement ? parseInt(valeurElement.innerText.trim(), 10) : 0;
     }
 
     //Fonction principale de réorganisation des cartes
     function reorganiserCartes() {
         //Sélectionne uniquement les cartes pas encore traitées
-        const cartes = Array.from(document.querySelectorAll('.your-content-card-wrapper.your-content-card-desktop:not([data-traitee="true"])'));
+        const cartes = Array.from(document.querySelectorAll('.review-card-container:not([data-traitee="true"])'));
 
         //Filtre les cartes avec une valeur numérique strictement supérieure à 0
         const cartesAvecValeur = cartes.filter(carte => extraireValeur(carte) > 0);
@@ -216,32 +216,36 @@
             cartesAvecValeur.sort((a, b) => extraireValeur(b) - extraireValeur(a));
 
             //Préfixe les cartes triées au début de leur conteneur parent
+            const conteneur = document.querySelector('#reviewTabContentContainer');
             cartesAvecValeur.forEach(carte => {
                 marquerCarteCommeTraitee(carte);
-                carte.style.backgroundColor = reviewColor; //Optionnel: mise en évidence des cartes
-                document.querySelector('.your-content-tab-container').prepend(carte);
+                carte.style.setProperty('border', `3px solid ${reviewColor}`, 'important');
+                conteneur.prepend(carte);
             });
+
+            //Réorganiser les cartes traitées par ordre croissant
             classerCartesTraitees();
         }
-
     }
 
+    //Détecter les changements dans le DOM et appliquer le tri
     function changeProfil() {
-        //Configuration de l'observer pour réagir aux modifications du DOM
-        const observer = new MutationObserver((mutations) => {
-            let mutationsAvecAjouts = mutations.some(mutation => mutation.addedNodes.length > 0);
+        if (window.location.href.startsWith('https://www.amazon.fr/gp/profile')) {
+            //Configuration de l'observer pour réagir aux modifications du DOM
+            const observer = new MutationObserver((mutations) => {
+                let mutationsAvecAjouts = mutations.some(mutation => mutation.addedNodes.length > 0);
 
-            if (mutationsAvecAjouts) {
-                reorganiserCartes();
-            }
-        });
+                if (mutationsAvecAjouts) {
+                    reorganiserCartes();
+                }
+            });
 
-        //Observe le document pour les changements
-        observer.observe(document.body, { childList: true, subtree: true });
+            //Observer les changements dans le DOM
+            observer.observe(document.querySelector('#reviewTabContentContainer'), { childList: true, subtree: true });
 
-        //Exécution initiale au cas où des cartes seraient déjà présentes
-        reorganiserCartes();
-        //Fin tri profil
+            //Exécution initiale au cas où des cartes seraient déjà présentes
+            reorganiserCartes();
+        }
     }
 
     function setHighlightColor() {
@@ -276,7 +280,7 @@
         box-shadow: 0px 0px 10px #ccc;
     `;*/
         popup.innerHTML = `
-          <h2 id="configPopupHeader">Couleur de surbrillance des nouveaux produits<span id="closeColorPicker" style="float: right; cursor: pointer;">&times;</span></h2>
+          <h2 id="configPopupHeader">Couleur de la bordure des avis utiles<span id="closeColorPicker" style="float: right; cursor: pointer;">&times;</span></h2>
         <input type="color" id="colorPicker" value="${hexColor}" style="width: 100%;">
         <div class="button-container final-buttons">
             <button class="full-width" id="saveColor">Enregistrer</button>
@@ -507,7 +511,6 @@
 
     //Fonction pour supprimer un modèle
     function deleteTemplate(index) {
-        console.log("prout");
         let savedTemplates = JSON.parse(localStorage.getItem('review_templates')) || [];
         if (savedTemplates[index]) {
             if (confirm(`Voulez-vous vraiment supprimer le modèle "${savedTemplates[index].name}" ?`)) {
@@ -662,51 +665,64 @@
     function targetPercentage() {
         if (document.URL === "https://www.amazon.fr/vine/account") {
             const { percentage, evaluatedArticles } = extractData();
-            const storedValue = localStorage.getItem('gestavisTargetPercentage');
+            const storedValue = parseFloat(localStorage.getItem('gestavisTargetPercentage'));
             const missingArticles = calculateMissingReviews(percentage, evaluatedArticles, storedValue);
             const doFireWorks = localStorage.getItem('doFireWorks');
-            if ((Number(storedValue) <= Number(percentage)) && doFireWorks === 'true') {
+
+            if (storedValue <= percentage && doFireWorks === 'true') {
                 fireWorks();
                 localStorage.setItem('doFireWorks', 'false');
-            } else if (Number(storedValue) > Number(percentage)) {
+            } else if (storedValue > percentage) {
                 localStorage.setItem('doFireWorks', 'true');
             }
-            insertResult(missingArticles);
+
+            insertResult(missingArticles, percentage, evaluatedArticles, storedValue);
             centerContentVertically();
             removeGreyText();
 
-            //Fonction pour extraire les données de la page
+            //Extraction des données de la page
             function extractData() {
                 const percentageText = document.querySelector('#vvp-perc-reviewed-metric-display p strong').innerText;
                 const articlesText = document.querySelector('#vvp-num-reviewed-metric-display p strong').innerText;
 
                 const percentage = parseFloat(percentageText.replace(',', '.').replace('%', '').trim());
-                const evaluatedArticles = parseInt(articlesText);
-
+                const evaluatedArticles = parseInt(articlesText, 10);
                 return { percentage, evaluatedArticles };
             }
 
-            //Fonction pour calculer le nombre d'avis manquants
+            //Calcul du nombre d'avis manquants
             function calculateMissingReviews(percentage, evaluatedArticles, targetPercentage) {
+                if (percentage === 0) return 0;
                 const totalArticles = evaluatedArticles / (percentage / targetPercentage);
                 const missingArticles = Math.ceil(totalArticles - evaluatedArticles);
                 return missingArticles;
             }
 
-            //Fonction pour insérer le résultat dans la page
-            function insertResult(missingArticles) {
+            //Injection des résultats
+            function insertResult(missingArticles, currentPercentage, evaluatedArticles, targetPercentage) {
                 const targetDiv = document.querySelector('#vvp-num-reviewed-metric-display');
                 const progressBar = targetDiv.querySelector('.animated-progress.progress-green');
                 const resultSpan = document.createElement('span');
                 resultSpan.className = 'review-todo';
-                let missingArticlesNumber = parseInt(missingArticles, 10);
+                const missingArticlesNumber = parseInt(missingArticles, 10);
+
                 if (!isNaN(missingArticlesNumber) && missingArticlesNumber > 0) {
-                    resultSpan.innerHTML = `Nombre d'avis à soumettre : <strong>${missingArticles}</strong> (avant d'atteindre ${storedValue} %)`;
+                    resultSpan.innerHTML = `Nombre d'avis à soumettre : <strong>${missingArticlesNumber}</strong> (avant d'atteindre ${targetPercentage} %).`;
                 } else {
-                    resultSpan.innerHTML = `Nombre d'avis à soumettre : <strong>Objectif atteint</strong> (${storedValue} % ou plus)`;
+                    const buffer = Math.floor((evaluatedArticles * (currentPercentage - targetPercentage)) / currentPercentage);
+
+                    if (buffer > 0) {
+                        resultSpan.innerHTML = `
+                        Nombre d'avis à soumettre : <strong>Objectif atteint</strong> (${targetPercentage}% ou plus).<br>
+                        Nombre de produits à commander avant de retomber sous les ${targetPercentage}% : <strong>${buffer}</strong>.
+                    `;
+                    } else {
+                        resultSpan.innerHTML = `Nombre d'avis à soumettre : <strong>Objectif atteint</strong> (${targetPercentage}% ou plus).`;
+                    }
                 }
-                resultSpan.style.display = 'block'; //Pour s'assurer qu'il apparaisse sur une nouvelle ligne
-                resultSpan.style.marginTop = '10px'; //Ajouter une marge
+
+                resultSpan.style.display = 'block';
+                resultSpan.style.marginTop = '10px';
 
                 const hrElement = document.createElement('hr');
 
@@ -714,7 +730,6 @@
                 resultSpan.insertAdjacentElement('afterend', hrElement);
             }
 
-            //Fonction pour centrer verticalement le contenu
             function centerContentVertically() {
                 const metricsBox = document.querySelector('#vvp-vine-activity-metrics-box .a-box-inner');
                 metricsBox.style.display = 'flex';
@@ -723,7 +738,6 @@
                 metricsBox.style.height = '100%';
             }
 
-            //Fonction pour supprimer l'élément grey-text
             function removeGreyText() {
                 const greyTextElement = document.querySelector('p.grey-text');
                 if (greyTextElement) {
@@ -983,7 +997,6 @@ body {
                 //Construit la nouvelle URL avec le numéro de page et la valeur de 'pn' existante
                 newUrl = `https://www.amazon.fr/vine/orders?page=${pageNumber}`;
             }
-            console.log(newUrl);
             window.location.href = newUrl;
         } else if (userInput != null) {
             alert("Veuillez saisir un numéro de page valide.");
@@ -1432,7 +1445,8 @@ body {
     var reviewColor = localStorage.getItem('reviewColor');
     var filterEnabled = localStorage.getItem('filterEnabled');
     var profilEnabled = localStorage.getItem('profilEnabled');
-    var footerEnabled = localStorage.getItem('footerEnabled');
+    //var footerEnabled = localStorage.getItem('footerEnabled');
+    var footerEnabled = 'false';
     var headerEnabled = localStorage.getItem('headerEnabled');
     var pageEnabled = localStorage.getItem('pageEnabled');
     var mobileEnabled = localStorage.getItem('mobileEnabled');
@@ -1458,7 +1472,7 @@ body {
     }
 
     if (reviewColor === null) {
-        reviewColor = '#FFFF00';
+        reviewColor = '#0000FF';
         localStorage.setItem('reviewColor', reviewColor);
     }
 
@@ -1952,13 +1966,13 @@ body {
     //Fonction pour afficher une boîte de dialogue pour définir le pourcentage cible
     function promptForTargetPercentage() {
         const storedValue = localStorage.getItem('gestavisTargetPercentage');
-        const targetPercentage = prompt('Entrez le pourcentage cible à atteindre (entre 90 et 100):', storedValue);
+        const targetPercentage = prompt('Entrez le pourcentage cible à atteindre (entre 60 et 100):', storedValue);
         if (targetPercentage !== null) {
             const parsedValue = parseFloat(targetPercentage);
-            if (!isNaN(parsedValue) && parsedValue >= 90 && parsedValue <= 100) {
+            if (!isNaN(parsedValue) && parsedValue >= 60 && parsedValue <= 100) {
                 localStorage.setItem('gestavisTargetPercentage', parsedValue);
             } else {
-                alert('Pourcentage invalide. Veuillez entrer un nombre entre 90 et 100.');
+                alert('Pourcentage invalide. Veuillez entrer un nombre entre 60 et 100.');
             }
         }
     }
@@ -2040,7 +2054,7 @@ body {
       ${createCheckbox('pageEnabled', 'Affichage des pages en partie haute', 'En plus des pages de navigation en partie basse, ajoute également la navigation des pages en haut')}
       ${createCheckbox('emailEnabled', 'Génération automatique des emails', 'Permet de générer automatiquement des mails à destination du support vine pour faire retirer un produit de votre liste d\'avis. Attention, on ne peut générer un mail que si le produit a été vu au moins une fois dans la liste de l\'onglet "Commandes"')}
       ${createCheckbox('profilEnabled', 'Mise en avant des avis avec des votes utiles sur les profils Amazon','Surligne de la couleur définie les avis ayant un vote utile ou plus. Il est également mis en début de page. Le surlignage ne fonctionne pas si l\'avis possède des photos')}
-      ${createCheckbox('footerEnabled', 'Supprimer le footer sur les profils Amazon (à décocher si les avis ne se chargent pas)', 'Supprime le bas de page sur les pages de profil Amazon, cela permet de charger plus facilement les avis sans descendre tout en bas de la page. Cela ne fonctionne que sur PC, donc à désactiver si vous avez le moindre problème sur cette page')}
+      ${false ? createCheckbox('footerEnabled', 'Supprimer le footer sur les profils Amazon (à décocher si les avis ne se chargent pas)', 'Supprime le bas de page sur les pages de profil Amazon, cela permet de charger plus facilement les avis sans descendre tout en bas de la page. Cela ne fonctionne que sur PC, donc à désactiver si vous avez le moindre problème sur cette page') : ''}
        </div>
     ${addActionButtons()}
   `;
@@ -2147,7 +2161,7 @@ body {
         return `
 <div class="button-container action-buttons">
   <button id="emailPopup">Configurer les emails</button><br>
-  <button id="reviewColor">Couleur de surbrillance des avis</button><br>
+  <button id="reviewColor">Couleur de bordure des avis</button><br>
   <button id="exportCSV">Exporter les avis en CSV</button>
   <button id="importCSV">Importer les avis en CSV</button>
   <button id="purgeTemplate">Supprimer tous les modèles d'avis</button>
