@@ -1,7 +1,7 @@
 //==UserScript==
 // @name         ReviewRemember
 // @namespace    http://tampermonkey.net/
-// @version      1.8.1
+// @version      1.8.2
 // @description  Outils pour les avis Amazon
 // @author       MegaMan (et Ashemka sur les premières versions)
 // @match        https://www.amazon.fr/review/create-review*
@@ -23,6 +23,10 @@
     'use strict';
 
     var version = GM_info.script.version;
+
+    const selectorTitle = 'reviewTitle';
+    const selectorReview = 'reviewText';
+    const selectorButtons = '.in-context-ryp__form_fields_container-desktop';
 
     //Correction du mot sur la page
     var element = document.querySelector('#vvp-reviews-button--completed a.a-button-text');
@@ -354,106 +358,114 @@
         //Supprime les boutons existants
         document.querySelectorAll('.custom-button-container').forEach(container => container.remove());
         //Ajoute les boutons à nouveau
-        addButtons();
+        const submitButtonArea = document.querySelector(selectorButtons);
+        if (submitButtonArea) {
+            addButtons(submitButtonArea);
+        }
     }
 
     //Ajout des différents boutons
-    function addButtons() {
-        const submitButtonArea = document.querySelector('.ryp__submit-button-card__card-frame');
-        if (submitButtonArea) {
-            const buttonsContainer = document.createElement('div');
-            buttonsContainer.style.display = 'flex';
-            buttonsContainer.style.flexDirection = 'column'; //Les éléments seront empilés en colonne
-            buttonsContainer.style.alignItems = 'flex-start'; //Alignement des éléments à gauche
-            buttonsContainer.className = 'custom-button-container';
+    function addButtons(targetElement) {
+        const buttonsContainer = document.createElement('div');
+        buttonsContainer.style.display = 'flex';
+        buttonsContainer.style.flexDirection = 'column'; //Les éléments seront empilés en colonne
+        buttonsContainer.style.alignItems = 'flex-start'; //Alignement des éléments à gauche
+        buttonsContainer.className = 'custom-button-container';
 
-            //Créer un conteneur pour la première ligne (menu déroulant)
-            const firstLineContainer = document.createElement('div');
-            firstLineContainer.className = 'first-line-container';
-            firstLineContainer.style.marginBottom = '15px'; //Ajout d'espace entre la première et la deuxième ligne
+        //Créer un conteneur pour la première ligne (menu déroulant)
+        const firstLineContainer = document.createElement('div');
+        firstLineContainer.className = 'first-line-container';
+        firstLineContainer.style.marginBottom = '15px'; //Ajout d'espace entre la première et la deuxième ligne
 
-            //Vérifie si review_template existe (ancienne version du modèle)
-            if (localStorage.getItem('review_template')) {
-                const savedTemplate = JSON.parse(localStorage.getItem('review_template'));
-                const { title, review } = savedTemplate;
-                //Utilise le titre de review_template comme nom du modèle ou "Ancien modèle" si vide
-                const name = title.trim() === "" ? "Ancien modèle" : title;
-                //Récupère les modèles existants
-                let savedTemplates = JSON.parse(localStorage.getItem('review_templates')) || [];
-                //Ajoute le nouveau modèle
-                savedTemplates.push({ name, title, review });
-                //Sauvegarde les modèles dans localStorage
-                localStorage.setItem('review_templates', JSON.stringify(savedTemplates));
-                //Supprime review_template
-                localStorage.removeItem('review_template');
-            }
-
-            //Ajout d'un champ de sélection pour les modèles
-            const selectTemplate = document.createElement('select');
-            selectTemplate.className = 'template-select';
-            selectTemplate.innerHTML = `<option value="">Sélectionner un modèle</option>`;
-            const savedTemplates = JSON.parse(localStorage.getItem('review_templates')) || [];
-            savedTemplates.forEach((template, index) => {
-                const option = document.createElement('option');
-                option.value = index;
-                option.textContent = template.name;
-                selectTemplate.appendChild(option);
-            });
-
-            firstLineContainer.appendChild(selectTemplate);
-            buttonsContainer.appendChild(firstLineContainer); //Ajouter la première ligne au conteneur principal
-
-            //Créer un conteneur pour la deuxième ligne (boutons liés aux modèles)
-            const secondLineContainer = document.createElement('div');
-            secondLineContainer.style.display = 'flex'; //Les boutons seront alignés horizontalement
-            secondLineContainer.style.gap = '10px'; //Espace entre les boutons
-            secondLineContainer.style.marginBottom = '15px'; //Ajout d'espace entre la deuxième et la troisième ligne
-            secondLineContainer.className = 'second-line-container';
-
-            //Bouton pour sauvegarder un modèle
-            addButton('Sauvegarder un nouveau modèle', saveTemplate, secondLineContainer, 'template-button');
-
-            //Bouton pour utiliser un modèle
-            const useTemplateButton = addButton('Utiliser modèle', () => useTemplate(selectTemplate.value), secondLineContainer, 'template-button');
-            useTemplateButton.style.display = 'none';
-
-            //Bouton pour supprimer un modèle
-            const deleteTemplateButton = addButton('Supprimer le modèle', () => deleteTemplate(selectTemplate.value), secondLineContainer, 'template-button');
-            deleteTemplateButton.style.display = 'none';
-
-            buttonsContainer.appendChild(secondLineContainer); //Ajouter la deuxième ligne au conteneur principal
-
-            //Créer un conteneur pour la troisième ligne (boutons d'avis)
-            const thirdLineContainer = document.createElement('div');
-            thirdLineContainer.style.display = 'flex'; //Les boutons seront alignés horizontalement
-            thirdLineContainer.style.gap = '10px'; //Espace entre les boutons
-            thirdLineContainer.className = 'third-line-container';
-
-            //Bouton pour sauvegarder l'avis
-            addButton('Sauvegarder l\'avis', saveReview, thirdLineContainer);
-
-            //Vérifie si un avis a été sauvegardé pour cet ASIN avant d'ajouter le bouton de restauration
-            const asin = getASIN();
-            if (localStorage.getItem(`review_${asin}`)) {
-                addButton('Restaurer l\'avis', restoreReview, thirdLineContainer);
-            }
-
-            buttonsContainer.appendChild(thirdLineContainer); //Ajouter la troisième ligne au conteneur principal
-
-            //Afficher/cacher les boutons "Utiliser modèle" et "Supprimer modèle" lorsque l'utilisateur sélectionne un modèle
-            selectTemplate.addEventListener('change', function () {
-                const selectedValue = selectTemplate.value;
-                if (selectedValue === "") {
-                    useTemplateButton.style.display = 'none';
-                    deleteTemplateButton.style.display = 'none';
-                } else {
-                    useTemplateButton.style.removeProperty('display');
-                    deleteTemplateButton.style.removeProperty('display');
-                }
-            });
-
-            submitButtonArea.prepend(buttonsContainer);
+        //Vérifie si review_template existe (ancienne version du modèle)
+        if (localStorage.getItem('review_template')) {
+            const savedTemplate = JSON.parse(localStorage.getItem('review_template'));
+            const { title, review } = savedTemplate;
+            //Utilise le titre de review_template comme nom du modèle ou "Ancien modèle" si vide
+            const name = title.trim() === "" ? "Ancien modèle" : title;
+            //Récupère les modèles existants
+            let savedTemplates = JSON.parse(localStorage.getItem('review_templates')) || [];
+            //Ajoute le nouveau modèle
+            savedTemplates.push({ name, title, review });
+            //Sauvegarde les modèles dans localStorage
+            localStorage.setItem('review_templates', JSON.stringify(savedTemplates));
+            //Supprime review_template
+            localStorage.removeItem('review_template');
         }
+
+        //Ajout d'un champ de sélection pour les modèles
+        const selectTemplate = document.createElement('select');
+        selectTemplate.className = 'template-select';
+        selectTemplate.innerHTML = `<option value="">Sélectionner un modèle</option>`;
+        const savedTemplates = JSON.parse(localStorage.getItem('review_templates')) || [];
+        savedTemplates.forEach((template, index) => {
+            const option = document.createElement('option');
+            option.value = index;
+            option.textContent = template.name;
+            selectTemplate.appendChild(option);
+        });
+
+        firstLineContainer.appendChild(selectTemplate);
+        buttonsContainer.appendChild(firstLineContainer); //Ajouter la première ligne au conteneur principal
+
+        //Créer un conteneur pour la deuxième ligne (boutons liés aux modèles)
+        const secondLineContainer = document.createElement('div');
+        secondLineContainer.style.display = 'flex'; //Les boutons seront alignés horizontalement
+        secondLineContainer.style.gap = '10px'; //Espace entre les boutons
+        secondLineContainer.style.marginBottom = '15px'; //Ajout d'espace entre la deuxième et la troisième ligne
+        secondLineContainer.className = 'second-line-container';
+
+        //Bouton pour sauvegarder un modèle
+        addButton('Sauvegarder un nouveau modèle', saveTemplate, secondLineContainer, 'template-button');
+
+        //Bouton pour utiliser un modèle
+        const useTemplateButton = addButton('Utiliser modèle', () => useTemplate(selectTemplate.value), secondLineContainer, 'template-button');
+        useTemplateButton.style.display = 'none';
+
+        //Bouton pour supprimer un modèle
+        const deleteTemplateButton = addButton('Supprimer le modèle', () => deleteTemplate(selectTemplate.value), secondLineContainer, 'template-button');
+        deleteTemplateButton.style.display = 'none';
+
+        buttonsContainer.appendChild(secondLineContainer); //Ajouter la deuxième ligne au conteneur principal
+
+        //Créer un conteneur pour la troisième ligne (boutons d'avis)
+        const thirdLineContainer = document.createElement('div');
+        thirdLineContainer.style.display = 'flex'; //Les boutons seront alignés horizontalement
+        thirdLineContainer.style.gap = '10px'; //Espace entre les boutons
+        thirdLineContainer.className = 'third-line-container';
+
+        //Bouton pour sauvegarder l'avis
+        addButton('Sauvegarder l\'avis', saveReview, thirdLineContainer);
+
+        //Vérifie si un avis a été sauvegardé pour cet ASIN avant d'ajouter le bouton de restauration
+        const asin = getASIN();
+        if (localStorage.getItem(`review_${asin}`)) {
+            addButton('Restaurer l\'avis', restoreReview, thirdLineContainer);
+        }
+
+        buttonsContainer.appendChild(thirdLineContainer); //Ajouter la troisième ligne au conteneur principal
+
+        //Afficher/cacher les boutons "Utiliser modèle" et "Supprimer modèle" lorsque l'utilisateur sélectionne un modèle
+        selectTemplate.addEventListener('change', function () {
+            const selectedValue = selectTemplate.value;
+            if (selectedValue === "") {
+                useTemplateButton.style.display = 'none';
+                deleteTemplateButton.style.display = 'none';
+            } else {
+                useTemplateButton.style.removeProperty('display');
+                deleteTemplateButton.style.removeProperty('display');
+            }
+        });
+
+        //submitButtonArea.prepend(buttonsContainer);
+        // Ajouter les boutons à l'élément cible
+        targetElement.appendChild(buttonsContainer);
+        document.querySelectorAll('.custom-button').forEach(button => {
+            button.addEventListener('click', function(event) {
+                event.preventDefault(); // Empêche le comportement par défaut (comme un "submit")
+                event.stopPropagation(); // Empêche la propagation de l'événement
+            });
+        });
     }
 
     //Ajoute un seul bouton au conteneur spécifié avec une classe optionnelle pour le style
@@ -473,8 +485,8 @@
         const savedTemplates = JSON.parse(localStorage.getItem('review_templates')) || [];
         const template = savedTemplates[index];
         if (template) {
-            document.getElementById('scarface-review-title-label').value = template.title;
-            document.querySelector('textarea#scarface-review-text-card-title').value = template.review;
+            document.getElementById(selectorTitle).value = template.title;
+            document.getElementById(selectorReview).value = template.review;
         } else {
             alert('Aucun modèle sélectionné.');
         }
@@ -487,8 +499,8 @@
             return alert('Le nom du modèle ne peut pas être vide.');
         }
 
-        const title = document.getElementById('scarface-review-title-label').value;
-        const review = document.querySelector('textarea#scarface-review-text-card-title').value;
+        const title = document.getElementById(selectorTitle).value;
+        const review = document.getElementById(selectorReview).value;
 
         let savedTemplates = JSON.parse(localStorage.getItem('review_templates')) || [];
 
@@ -531,8 +543,8 @@
         const asin = getASIN();
         const savedReview = JSON.parse(localStorage.getItem(`review_${asin}`));
         if (savedReview) {
-            document.getElementById('scarface-review-title-label').value = savedReview.title;
-            document.querySelector('textarea#scarface-review-text-card-title').value = savedReview.review;
+            document.getElementById(selectorTitle).value = savedReview.title;
+            document.getElementById(selectorReview).value = savedReview.review;
         } else {
             alert('Aucun avis sauvegardé pour ce produit.');
         }
@@ -540,8 +552,8 @@
 
     //Fonction pour sauvegarder l'avis
     function saveReview(autoSave = false) {
-        const title = document.getElementById('scarface-review-title-label').value;
-        const review = document.querySelector('textarea#scarface-review-text-card-title').value;
+        const title = document.getElementById(selectorTitle).value;
+        const review = document.getElementById(selectorReview).value;
         const asin = getASIN();
         localStorage.setItem(`review_${asin}`, JSON.stringify({ title, review }));
         if (!autoSave) {
@@ -1426,10 +1438,10 @@ body {
 
     function autoSaveReview() {
         window.addEventListener('load', function() {
-            //Sélectionner le bouton en utilisant le sélecteur de classe et data-hook
-            var button = document.querySelector('span[data-hook="ryp-review-submit-button"] button.a-button-text');
+            // Sélectionner le bouton à l'aide du nouveau sélecteur
+            var button = document.querySelector('div.a-section.in-context-ryp__submit-button-frame-desktop input.a-button-input');
 
-            //Vérifier si le bouton existe avant d'ajouter l'écouteur d'événements
+            // Vérifier si le bouton existe avant d'ajouter l'écouteur d'événements
             if (button) {
                 button.addEventListener('click', function() {
                     saveReview(true);
@@ -2183,28 +2195,27 @@ body {
     function tryToAddButtons() {
         if (buttonsAdded) return; //Arrêtez si les boutons ont déjà été ajoutés
 
-        const submitButtonArea = document.querySelector('.ryp__submit-button-card__card-frame');
+        const submitButtonArea = document.querySelector(selectorButtons);
         if (submitButtonArea) {
-            addButtons();
+            addButtons(submitButtonArea);
             buttonsAdded = true; //Marquer que les boutons ont été ajoutés
             //Agrandir la zone pour le texte de l'avis
-            const textarea = document.getElementById('scarface-review-text-card-title');
+            const textarea = document.getElementById('reviewText');
             if (textarea) {
                 textarea.style.height = '300px'; //Définit la hauteur à 300px
                 textarea.style.resize = 'both';
             }
-            //Permettre l'ajout de plusieurs médias d'un coup
-            var inputElement = document.getElementById('ryp__media-upload-banner-input');
+            //HS pour l'instant, permettre l'ajout de plusieurs médias d'un coup
+            /*var inputElement = document.getElementById('ryp__media-upload-banner-input');
             if (inputElement) {
                 inputElement.setAttribute('multiple', '');
-            }
+            }*/
         } else {
             setTimeout(tryToAddButtons, 100); //Réessayer après un demi-seconde
         }
     }
 
     tryToAddButtons();
-
 
     //Suppression du footer uniquement sur les PC (1000 étant la valeur pour "Version pour ordinateur" sur Kiwi à priori
     if (window.innerWidth > 768 && window.innerWidth != 1000 && window.innerWidth != 1100 && window.location.href.startsWith("https://www.amazon.fr/gp/profile/") && footerEnabled === 'true') {
