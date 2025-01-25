@@ -1,7 +1,7 @@
 //==UserScript==
 // @name         ReviewRemember
 // @namespace    http://tampermonkey.net/
-// @version      1.8.2
+// @version      1.8.3
 // @description  Outils pour les avis Amazon
 // @author       MegaMan (et Ashemka sur les premières versions)
 // @match        https://www.amazon.fr/review/create-review*
@@ -12,6 +12,7 @@
 // @match        https://www.amazon.fr/vine/orders*
 // @match        https://www.amazon.fr/gp/profile/*
 // @match        https://www.amazon.fr/vine/resources
+// @match        file:///C:/Users/MegaMan/Downloads/%C3%89valuez%20vos%20achats.html
 // @icon         https://pickme.alwaysdata.net/img/RR-ICO-2.png
 // @updateURL    https://raw.githubusercontent.com/teitong/reviewremember/main/ReviewRemember.user.js
 // @downloadURL  https://raw.githubusercontent.com/teitong/reviewremember/main/ReviewRemember.user.js
@@ -27,6 +28,10 @@
     const selectorTitle = 'reviewTitle';
     const selectorReview = 'reviewText';
     const selectorButtons = '.in-context-ryp__form_fields_container-desktop';
+
+    const selectorTitleOld = 'scarface-review-title-label';
+    const selectorReviewOld = 'scarface-review-text-card-title';
+    const selectorButtonsOld = '.ryp__submit-button-card__card-frame';
 
     //Correction du mot sur la page
     var element = document.querySelector('#vvp-reviews-button--completed a.a-button-text');
@@ -317,7 +322,6 @@
         });
     }
 
-
     const asin = new URLSearchParams(window.location.search).get('asin');
 
     //Définition des styles pour les boutons
@@ -358,7 +362,9 @@
         //Supprime les boutons existants
         document.querySelectorAll('.custom-button-container').forEach(container => container.remove());
         //Ajoute les boutons à nouveau
-        const submitButtonArea = document.querySelector(selectorButtons);
+        const submitButtonArea =
+              document.querySelector(selectorButtons) ||
+              document.querySelector(selectorButtonsOld);
         if (submitButtonArea) {
             addButtons(submitButtonArea);
         }
@@ -485,8 +491,22 @@
         const savedTemplates = JSON.parse(localStorage.getItem('review_templates')) || [];
         const template = savedTemplates[index];
         if (template) {
-            document.getElementById(selectorTitle).value = template.title;
-            document.getElementById(selectorReview).value = template.review;
+            //Si null ou undefined, on utilise selectorTitleOld
+            const titleElement = document.getElementById(selectorTitle)
+            || document.getElementById(selectorTitleOld);
+
+            const reviewElement = document.getElementById(selectorReview)
+            || document.getElementById(selectorReviewOld);
+
+            //On vérifie l'existence de titleElement avant de l'utiliser
+            if (titleElement) {
+                titleElement.value = template.title;
+            }
+
+            if (reviewElement) {
+                reviewElement.value = template.review;
+            }
+            forceChangeReview();
         } else {
             alert('Aucun modèle sélectionné.');
         }
@@ -498,9 +518,21 @@
         if (!name) {
             return alert('Le nom du modèle ne peut pas être vide.');
         }
+        //Si null ou undefined, on utilise selectorTitleOld
+        const titleElement = document.getElementById(selectorTitle)
+        || document.getElementById(selectorTitleOld);
 
-        const title = document.getElementById(selectorTitle).value;
-        const review = document.getElementById(selectorReview).value;
+        const reviewElement = document.getElementById(selectorReview)
+        || document.getElementById(selectorReviewOld);
+
+        //On vérifie l'existence de titleElement avant de l'utiliser
+        if (titleElement) {
+            var title = titleElement.value;
+        }
+
+        if (reviewElement) {
+            var review = reviewElement.value;
+        }
 
         let savedTemplates = JSON.parse(localStorage.getItem('review_templates')) || [];
 
@@ -543,8 +575,22 @@
         const asin = getASIN();
         const savedReview = JSON.parse(localStorage.getItem(`review_${asin}`));
         if (savedReview) {
-            document.getElementById(selectorTitle).value = savedReview.title;
-            document.getElementById(selectorReview).value = savedReview.review;
+            //Si null ou undefined, on utilise selectorTitleOld
+            const titleElement = document.getElementById(selectorTitle)
+            || document.getElementById(selectorTitleOld);
+
+            const reviewElement = document.getElementById(selectorReview)
+            || document.getElementById(selectorReviewOld);
+
+            //On vérifie l'existence de titleElement avant de l'utiliser
+            if (titleElement) {
+                titleElement.value = savedReview.title;
+            }
+
+            if (reviewElement) {
+                reviewElement.value = savedReview.review;
+            }
+            forceChangeReview();
         } else {
             alert('Aucun avis sauvegardé pour ce produit.');
         }
@@ -552,8 +598,22 @@
 
     //Fonction pour sauvegarder l'avis
     function saveReview(autoSave = false) {
-        const title = document.getElementById(selectorTitle).value;
-        const review = document.getElementById(selectorReview).value;
+        //Si null ou undefined, on utilise selectorTitleOld
+        const titleElement = document.getElementById(selectorTitle)
+        || document.getElementById(selectorTitleOld);
+
+        const reviewElement = document.getElementById(selectorReview)
+        || document.getElementById(selectorReviewOld);
+
+        //On vérifie l'existence de titleElement avant de l'utiliser
+        if (titleElement) {
+            var title = titleElement.value;
+        }
+
+        if (reviewElement) {
+            var review = reviewElement.value;
+        }
+
         const asin = getASIN();
         localStorage.setItem(`review_${asin}`, JSON.stringify({ title, review }));
         if (!autoSave) {
@@ -599,6 +659,139 @@
             progressBar.style.backgroundColor = color;
             progressBar.style.width = width;
         }
+    }
+
+    //Griser le bouton Envoyer après avoir chargé un avis
+
+    //Fonction de nettoyage qui supprime l'intervalle, les écouteurs, le message, etc...
+    function cleanupPreviousRun() {
+        const data = window._fcrData;
+        if (!data) return;
+
+        //Supprimer l'intervalle s'il existe
+        if (data.hideInterval) {
+            clearInterval(data.hideInterval);
+            data.hideInterval = null;
+        }
+        //Supprimer les écouteurs sur les champs
+        if (data.reviewTextarea && data.onChangeReview) {
+            data.reviewTextarea.removeEventListener('input', data.onChangeReview);
+        }
+        if (data.reviewTitle && data.onChangeTitle) {
+            data.reviewTitle.removeEventListener('input', data.onChangeTitle);
+        }
+        //Supprimer le message rouge (s'il existe encore)
+        if (data.message && data.message.parentNode) {
+            data.message.parentNode.removeChild(data.message);
+        }
+        //Rétablir l'affichage par défaut du conteneur
+        if (data.boutonContainer) {
+            data.boutonContainer.style.removeProperty('display');
+        }
+        window._fcrData = null;
+    }
+
+    function forceChangeReview() {
+        //Si on a déjà lancé la fonction auparavant, on nettoie d'abord
+        if (window._fcrData) {
+            cleanupPreviousRun();
+        }
+
+        const reviewTextarea = document.getElementById(selectorReview);
+        const reviewTitle = document.getElementById(selectorTitle);
+        const boutonContainer = document.querySelector('.in-context-ryp__submit-button-frame-desktop');
+
+        if (!reviewTextarea || !reviewTitle || !boutonContainer) {
+            console.log("Impossible de trouver reviewTextarea, reviewTitle ou boutonContainer.");
+            return;
+        }
+
+        //On crée un objet où on stocke nos références
+        window._fcrData = {
+            reviewTextarea: reviewTextarea,
+            reviewTitle: reviewTitle,
+            boutonContainer: boutonContainer,
+            hideInterval: null,
+            message: null,
+            onChangeReview: null,
+            onChangeTitle: null,
+            hasRun: true
+        };
+
+        //Valeurs initiales
+        const initialReview = reviewTextarea.value;
+        const initialTitle = reviewTitle.value;
+
+        //Création du message
+        const message = document.createElement('p');
+        message.style.color = 'red';
+        message.style.fontWeight = 'bold';
+        message.style.marginTop = '8px';
+        message.style.marginBottom = '8px';
+
+        //On l'insère après le bouton
+        boutonContainer.insertAdjacentElement('afterend', message);
+        window._fcrData.message = message;
+
+        //On cache immédiatement le conteneur
+        boutonContainer.style.setProperty('display', 'none', 'important');
+
+        //Timer car Amazon garde pas la propriété none sinon
+        let hideInterval = setInterval(() => {
+            boutonContainer.style.setProperty('display', 'none', 'important');
+        }, 500);
+        window._fcrData.hideInterval = hideInterval;
+
+        let changedReview = false;
+        let changedTitle = false;
+
+        function checkIfBothChanged() {
+            //Si les deux champs ont été modifiés
+            if (changedReview && changedTitle) {
+                //On arrête le masquage
+                if (window._fcrData.hideInterval) {
+                    clearInterval(window._fcrData.hideInterval);
+                    window._fcrData.hideInterval = null;
+                }
+                boutonContainer.style.removeProperty('display');
+                message.textContent = "";
+
+                //On supprime les écouteurs
+                reviewTextarea.removeEventListener('input', onChangeReview);
+                reviewTitle.removeEventListener('input', onChangeTitle);
+            } else {
+                //On indique ce qu'il manque à modifier
+                const missing = [];
+                if (!changedReview) missing.push("votre avis");
+                if (!changedTitle) missing.push("le titre de l'avis");
+                message.textContent = "Pour envoyer l'avis, veuillez modifier : " + missing.join(" et ");
+            }
+        }
+
+        function onChangeReview() {
+            //S'il n'est pas encore modifié, on compare à la valeur initiale
+            if (!changedReview && reviewTextarea.value !== initialReview) {
+                changedReview = true;
+            }
+            checkIfBothChanged();
+        }
+
+        function onChangeTitle() {
+            if (!changedTitle && reviewTitle.value !== initialTitle) {
+                changedTitle = true;
+            }
+            checkIfBothChanged();
+        }
+
+        //On garde la référence pour pouvoir les enlever plus tard
+        window._fcrData.onChangeReview = onChangeReview;
+        window._fcrData.onChangeTitle = onChangeTitle;
+
+        reviewTextarea.addEventListener('input', onChangeReview);
+        reviewTitle.addEventListener('input', onChangeTitle);
+
+        //Vérification initiale
+        checkIfBothChanged();
     }
 
     //Affiche la dernière mise a jour du profil
@@ -2195,7 +2388,9 @@ body {
     function tryToAddButtons() {
         if (buttonsAdded) return; //Arrêtez si les boutons ont déjà été ajoutés
 
-        const submitButtonArea = document.querySelector(selectorButtons);
+        const submitButtonArea =
+              document.querySelector(selectorButtons) ||
+              document.querySelector(selectorButtonsOld);
         if (submitButtonArea) {
             addButtons(submitButtonArea);
             buttonsAdded = true; //Marquer que les boutons ont été ajoutés
