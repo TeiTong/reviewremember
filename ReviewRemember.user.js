@@ -1,7 +1,7 @@
 //==UserScript==
 // @name         ReviewRemember
 // @namespace    http://tampermonkey.net/
-// @version      1.8.3
+// @version      1.8.4
 // @description  Outils pour les avis Amazon
 // @author       MegaMan (et Ashemka sur les premières versions)
 // @match        https://www.amazon.fr/review/create-review*
@@ -2709,6 +2709,10 @@ li.a-last a span.larr {      /* Cible le span larr dans les li a-last */
     auto-fill,
     minmax(var(--grid-column-width), auto)
   ) !important;
+}
+
+#vvp-header .vvp-header-links-container {
+  display: block !important;
 }
 		`;
         document.head.appendChild(mobileCss);
