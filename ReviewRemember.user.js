@@ -2474,6 +2474,10 @@ body {
   margin-left: 0 !important;
 }
 
+#vvp-header .vvp-header-links-container {
+  display: block !important;
+}
+
 /* Taille de police différente
 .a-ember body {
      font-size : 12px !important;
