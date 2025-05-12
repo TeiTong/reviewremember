@@ -1,7 +1,7 @@
 //==UserScript==
 // @name         ReviewRemember
 // @namespace    http://tampermonkey.net/
-// @version      1.8.4
+// @version      1.8.5
 // @description  Outils pour les avis Amazon
 // @author       MegaMan (et Ashemka sur les premières versions)
 // @match        https://www.amazon.fr/review/create-review*
@@ -2463,6 +2463,15 @@ body {
     width: 90%; /* Prendre 90% de la largeur de l'écran */
     margin: 10px auto; /* Ajout d'un peu de marge autour des popups */
   }
+}
+
+/* Fix CSS du 12/05/25 */
+.vvp-centered-logo {
+  width: auto !important;
+}
+.vvp-items-button-and-search-container {
+  margin-top: 0 !important;
+  margin-left: 0 !important;
 }
 
 /* Taille de police différente
