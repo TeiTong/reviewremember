@@ -1,9 +1,9 @@
 //==UserScript==
 // @name         ReviewRemember
 // @namespace    http://tampermonkey.net/
-// @version      1.8.5
+// @version      1.8.6
 // @description  Outils pour les avis Amazon
-// @author       MegaMan (et Ashemka sur les premières versions)
+// @author       Créateur/Codeur principal : MegaMan / Codeur secondaire : Sulff
 // @match        https://www.amazon.fr/review/create-review*
 // @match        https://www.amazon.fr/reviews/edit-review*
 // @match        https://www.amazon.fr/vine/vine-reviews*
@@ -65,6 +65,15 @@
 
     //On initialise les infos pour la version mobile (ou non)
     var pageX = "Page X";
+
+    // Fonction pour détecter si l'utilisateur est sur mobile (à ne pas confondre avec le mode mobile activable manuellement
+    // dans les paramètres utilisateur)
+    // Note : si le mode PC est forcé sur mobile, cette fonction renverra toujours false, ce qui est le comportement attendu,
+    // car les traitements spécifiques au PC s'exécuteront, et la structure HTML liée sera présente
+    // => Cette fonction ne devrait pas poser de problème de fonctionnement si le mode PC est forcé sur mobile
+    function isMobile() {
+        return document.documentElement.classList.contains('a-mobile');
+    }
 
     //On remplace l'image et son lien par notre menu
     function replaceImageUrl() {
@@ -1142,10 +1151,15 @@ body {
             var targetDiv = false;
             if (currentUrl.includes("vine-reviews")) {
                 targetDiv = document.querySelector('.vvp-reviews-table--heading-top');
-                targetDiv.parentNode.insertBefore(newDiv, targetDiv);
+                if (targetDiv && targetDiv.parentNode) {
+                    targetDiv.parentNode.insertBefore(newDiv, targetDiv);
+                }
             } else if (currentUrl.includes("orders")) {
-                targetDiv = document.querySelector('.vvp-tab-content .vvp-orders-table--heading-top');
-                targetDiv.parentNode.insertBefore(newDiv, targetDiv);
+                targetDiv = document.querySelector('.vvp-tab-content .vvp-orders-table--heading-top') ||
+                    document.querySelector('.vvp-orders-table');
+                if (targetDiv && targetDiv.parentNode) {
+                    targetDiv.parentNode.insertBefore(newDiv, targetDiv);
+                }
             }
 
             //Trouver ou créer le conteneur de pagination si nécessaire
@@ -1235,10 +1249,9 @@ body {
                     productUrl = productUrl.href;
                     asin = extractASIN(productUrl);
                 } else {
-                    const asinElement = row.querySelector('.vvp-orders-table--text-col');
-                    asin = asinElement ? asinElement.childNodes[0].nodeValue.trim() : null;
+                    return;
                 }
-                const key_asin = "order_" + asin
+                const key_asin = "order_" + asin;
                 if (!localStorage.getItem(key_asin)) {
                     const imageUrl = row.querySelector('.vvp-orders-table--image-col img').src;
                     let productName = row.querySelector('.vvp-orders-table--text-col a .a-truncate-full')
@@ -1248,6 +1261,7 @@ body {
                         productName = "Indispo";
                     }
                     const timestampElement = row.querySelector('[data-order-timestamp]');
+                    const timestamp = timestampElement.getAttribute('data-order-timestamp');
                     const orderDate = timestampElement ? new Date(parseInt(timestampElement.getAttribute('data-order-timestamp'))).toLocaleDateString("fr-FR") : null;
                     const etv = row.querySelector('.vvp-orders-table--text-col.vvp-text-align-right').textContent.trim();
                     const orderDetailsUrl = row.querySelector('.vvp-orders-table--action-btn a').href;
@@ -1258,13 +1272,16 @@ body {
                         productName,
                         imageUrl,
                         orderDate,
+                        timestamp,
                         etv,
                         orderId
                     };
                     //console.log(productData);
 
                     //Stockage dans localStorage avec l'ASIN comme clé
-                    localStorage.setItem(key_asin, JSON.stringify(productData));
+                    if (localStorage.getItem(key_asin) === null || !isMobile()) {
+                        localStorage.setItem(key_asin, JSON.stringify(productData));
+                    }
                 }
             });
         }
@@ -1486,8 +1503,12 @@ body {
     }
 
     function addEmailButton() {
-        const header = document.querySelector('.vvp-reviews-table--heading-top');
-
+        let header = document.querySelector('.vvp-reviews-table--heading-top');
+        if (isMobile()) {
+            //On rend visible le header qui est caché par défaut
+            const header = document.querySelector('.vvp-reviews-table--heading-top');
+            if (header) header.style.display = 'block';
+        }
         //Créer un conteneur pour le bouton et l'email qui seront alignés à droite
         const actionsContainer = document.createElement('div');
         if (mobileEnabled == 'true') {
@@ -1548,7 +1569,7 @@ body {
         //Ajouter le bouton et l'email au conteneur d'actions
         actionsContainer.appendChild(button);
         actionsContainer.appendChild(emailSpan);
-
+        console.log("action", actionsContainer);
         //Ajouter le conteneur d'actions à l'en-tête
         if (header) {
             header.style.position = 'relative'; //S'assure que le positionnement absolu de actionsContainer fonctionne correctement
@@ -1777,7 +1798,10 @@ body {
     }
 
     if (emailEnabled === 'true') {
-        saveOrders();
+        //Les ASIN ne sont pas disponibles sur la page des commandes sur Mobile, donc on ne peut pas sauvegarder les commandes
+        if (!isMobile()) {
+            saveOrders();
+        }
         addMail();
     }
 
@@ -2412,12 +2436,15 @@ body {
 
     tryToAddButtons();
 
-    //Suppression du footer uniquement sur les PC (1000 étant la valeur pour "Version pour ordinateur" sur Kiwi à priori
+    //Suppression du footer uniquement sur les PC (1000 étant la valeur pour "Version pour ordinateur" sur Kiwi à priori)
     if (window.innerWidth > 768 && window.innerWidth != 1000 && window.innerWidth != 1100 && window.location.href.startsWith("https://www.amazon.fr/gp/profile/") && footerEnabled === 'true') {
         //Votre code de suppression du footer ici
         var styleFooter = document.createElement('style');
         styleFooter.textContent = `
         #rhf, #rhf-shoveler, .rhf-frame, #navFooter {
+            display: none !important;
+        }
+        footer.nav-mobile.nav-ftr-batmobile {
             display: none !important;
         }
     `;
@@ -2429,9 +2456,12 @@ body {
         var supFooter = document.createElement('style');
 
         supFooter.textContent = `
-#rhf, #rhf-shoveler, .rhf-frame, #navFooter {
-  display: none !important;
-}
+        #rhf, #rhf-shoveler, .rhf-frame, #navFooter {
+            display: none !important;
+        }
+        footer.nav-mobile.nav-ftr-batmobile {
+            display: none !important;
+        }
 `
         document.head.appendChild(supFooter);
     }
